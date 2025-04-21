@@ -3,8 +3,9 @@ title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy China Data '
 author: "Rui Wang"
 date: "`r Sys.Date()`"
 output: html_document
+
+Due to ethics and data privacy concerns, the raw data corresponding to this file has not been uploaded. However, I have uploaded the code to demonstrate the data wrangling process.
 ---
-The big data file downloaded from PsychoPy is not included on OSF because of potentially identifying participants. However, this R markdown script is included to show the procedures we used to get the data ready for analysis. CSV files saved here are used in the data analysis R markdown scripts.
 
 ```{r Import Data, include=FALSE}
 # Load libraries
