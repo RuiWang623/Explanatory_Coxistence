@@ -1,0 +1,695 @@
+---
+title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy Data Wrangling UK'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Note for abbreviations: SS = Stop Signal task; FT = Flanker task; FM = Figure Matching task; CB = Corsi Block task; MRIB = Matrix Reasoning task; AT = Animism task; BT = Buoyancy task; RS = Science Statement task; ACC = accuracy; RTc = Response Time for correct trials; EFF = efficiency
+
+```{r Load Libraries}
+library(tidyverse) # Laod Tidyverse library - used for data wrangling
+library(readr)  # for read_csv()
+library(data.table) # needed to read and combine CSV filessystemsound_original_time
+library(dplyr)  # for mutate()
+library(tidyr)  # for unnest()
+library(purrr)  # for map(), reduce()
+library(readxl) # needed to read excel files with condition detail
+library(stringr) # for string processing
+```
+
+```{r Import Data, include=FALSE}
+# Identify the files to upload, here looking for all .csv files in the folder
+files = list.files(path = "UKDataRaw", pattern="*.csv", full.names = TRUE)
+
+# Combine all raw data files
+combinefiles <- data.frame()
+for (i in 1:length(files)) {
+  data_read <- read_csv(files[i], guess_max = 10000)
+  if (nrow(combinefiles) == 0) {
+    combinefiles <- data_read
+  } else {
+    common_cols <- intersect(names(combinefiles), names(data_read))
+    if (length(common_cols) > 0) {
+      data_read <- data_read[, common_cols, drop = FALSE]
+      combinefiles <- rbind(combinefiles[, common_cols, drop = FALSE], data_read)
+    }
+  }
+}
+combinefiles <- as_tibble(combinefiles)
+colnames(combinefiles)[10] = "ParticipantID"
+
+```
+
+```{r Correct participant column}
+# dplyr::rename the column that collected participant ID numbers in the second wave, then unite the old and new participant ID columns
+ALLdata <- combinefiles %>%  mutate (ParticipantID = as.factor(ParticipantID)) %>% 
+  mutate (expName = as.factor(expName)) %>% 
+  mutate (OS = as.factor(OS))
+write.csv(ALLdata, "ALL_data_UK.csv", row.names = FALSE, sep="\t")
+```
+
+```{r Stop Signal: Tidy}
+ssdata <- dplyr::rename (.data = ALLdata, SS_instruction_key_resp.keys = SS_instr_key_resp.keys) %>%
+  dplyr::rename (SS_instruction_key_resp.rt = SS_instr_key_resp.rt) %>% 
+  dplyr::rename (SS_instruction_image = SSInstructionImage) %>% 
+  dplyr::rename (SS_instruction_soundvolume = SSInstructionSoundVolume) %>%
+  dplyr::rename (SS_trials_image = SSTrialsImage) %>% 
+  dplyr::rename (SS_trials_gap_system = SSTrialsSoundStart) %>% 
+  dplyr::rename (SS_trials_gap_real = SS_trials_sound.tStart) %>%
+  dplyr::rename (SS_trials_soundvolume = SSTrialsSoundVolume) %>% 
+  dplyr::rename (SS_trials_key_resp.keys = SS_trials_key_resp.keys) %>% 
+  dplyr::rename (SS_trials_key_resp.rt = SS_trials_key_resp.rt) %>% 
+  dplyr::rename (SS_trials_correctanswer = CorrAns) %>% 
+  dplyr::rename (SS_break_key_resp.keys = SS_BOE_key_resp.keys) %>% 
+  dplyr::rename (SS_break_key_resp.rt = SS_BOE_key_resp.rt) %>% 
+  dplyr::rename (SS_break_image = SSBOEImage) %>% 
+  # Create a new column to identify which rows are not part of this task.
+  mutate (SS_deleterows = paste (SS_instruction_image, SS_trials_image, SS_break_image, sep = '+'))  %>% 
+  # Identify columns that have categorical information and labelled it specifically as a factor/category. This is useful for checking the data.
+  # (note - might not have identified all here - but have included the ones most useful for checking the data)
+  mutate (SS_deleterows = as.factor(SS_deleterows)) %>% 
+  mutate (SS_instruction_key_resp.keys = as.factor(SS_instruction_key_resp.keys)) %>% 
+  mutate (SS_instruction_image = as.factor(SS_instruction_image)) %>% 
+  mutate (SS_trials_key_resp.keys = as.factor(SS_trials_key_resp.keys)) %>% 
+  mutate (SS_trials_image = as.factor(SS_trials_image)) %>% 
+  mutate (SS_trials_correctanswer = as.factor(SS_trials_correctanswer)) %>% 
+  mutate (SS_break_image = as.factor(SS_break_image)) %>% 
+  mutate (ParticipantID = as.factor(ParticipantID)) %>% 
+  mutate (expName = as.factor(expName)) %>% 
+  mutate (date = as.factor(date))%>% 
+  mutate (psychopyVersion = as.factor(psychopyVersion)) %>% 
+  mutate (frameRate = as.factor(frameRate))%>% 
+  mutate (SS_break_key_resp.keys = as.factor(SS_break_key_resp.keys)) %>%
+  # Complete some recoding to clean up the content in a couple of columns as it will be easier for other processing later. 
+  mutate(SS_trials_correctanswer = recode_factor (SS_trials_correctanswer, 
+                         `None` = "none", 
+                         `left'`= "left",
+                         `right'`= "right")) %>% 
+  mutate(SS_trials_key_resp.keys = recode_factor (SS_trials_key_resp.keys, 
+                         `["left"]` = "left", 
+                         `["right"]` = "right")) %>%
+  mutate(SS_trialtype = recode_factor (SS_trials_correctanswer, 
+                         `none` = "No-Go", 
+                         `left` = "Go", 
+                         `right`= "Go")) %>% 
+  # Create new columns to code for accuracy and determine RT to correct trials
+  mutate(SS_trials_accuracyscore = case_when (SS_trials_key_resp.keys == "left" & SS_trials_correctanswer == "left" ~ 1, 
+                                              SS_trials_key_resp.keys == "right" & SS_trials_correctanswer == "right" ~ 1,
+                                              is.na (SS_trials_key_resp.keys)	 & SS_trials_correctanswer == "none" ~ 1,
+                                              TRUE ~ 0)) %>% 
+  mutate (SS_trials_accuracyscore = as.factor(SS_trials_accuracyscore))%>% 
+  mutate(SS_trials_accuracy = recode_factor (SS_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect")) %>% 
+  mutate(SS_trials_RTcorrect = case_when (SS_trials_accuracyscore == 1 ~ SS_trials_key_resp.rt))%>%
+  mutate(SS_trials_gap_system = case_when (SS_trials_soundvolume == 1 ~ SS_trials_gap_system))%>%
+  mutate(SS_trials_gap_real = case_when (SS_trials_soundvolume == 1 ~ SS_trials_gap_real))
+```
+```{r Stop Signal: Create full file}
+# Create a new data table (called ALLstopsignal) that includes only the Stop Signal columns. The ordering below is the order of the columns in the new data file.  
+ALLstopsignal <- dplyr::select(.data = ssdata, 
+                            SS_deleterows, ParticipantID, date, expName, psychopyVersion, frameRate, SS_instruction_key_resp.keys, SS_instruction_key_resp.rt, SS_instruction_loop.thisRepN, SS_instruction_loop.thisTrialN, SS_instruction_loop.thisN, SS_instruction_loop.thisIndex, SS_instruction_image, SS_instruction_soundvolume, SS_trials_key_resp.keys, SS_trials_key_resp.rt, SS_trials_loop.thisRepN, SS_trials_loop.thisTrialN, SS_trials_loop.thisN, SS_trials_loop.thisIndex, SS_break_key_resp.keys, SS_break_key_resp.rt, SS_main_loop.thisRepN, SS_main_loop.thisTrialN, SS_main_loop.thisN, SS_main_loop.thisIndex, SS_break_image, SS_trials_image, SS_trials_soundvolume, SS_trials_correctanswer, SS_trialtype, SS_trials_accuracy, SS_trials_accuracyscore, SS_trials_RTcorrect,SS_trials_gap_system,SS_trials_gap_real) %>% 
+# Drop the rows that are not part of this task
+filter(SS_deleterows != "NA+NA+NA")
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(ALLstopsignal)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(ALLstopsignal, "ALL_StopSignal_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Stop Signal: Create file for analyses}
+# Create a new data table (called TRIALSstopsignal) that includes only trials for the stop signal task (so deletes the columns that are linked to the introduction, break or ending of the task). The ordering below is the order of the columns in the new data file. 
+TRIALSstopsignal <- dplyr::select(.data = ALLstopsignal, 
+                            ParticipantID, date, expName, psychopyVersion, frameRate, SS_trials_key_resp.keys, SS_trials_key_resp.rt, SS_trials_image, SS_trials_soundvolume, SS_trials_correctanswer, SS_trialtype, SS_trials_accuracy, SS_trials_accuracyscore, SS_trials_RTcorrect,SS_trials_gap_system,SS_trials_gap_real) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+drop_na(SS_trials_image)
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(TRIALSstopsignal)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(TRIALSstopsignal, "TRIALS_StopSignal_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Figure Matching: Tidy}
+#Create a new data table called fmdata, then within the new data table will dplyr::rename some of the column headers. Unless otherwise noted this is to keep a consistent naming format across the columns/tasks, correct typos or make the heading label more clear.
+fmdata1 <- dplyr::rename (.data = ALLdata, FM_instruction_image = FMInstrImage) %>% 
+  dplyr::rename (FM_trials_key_resp.keys = FM_trial_key_resp.keys) %>% 
+  dplyr::rename (FM_trials_key_resp.rt = FM_trial_key_resp.rt) %>%
+  dplyr::rename (FM_trials_image = FMPicture) %>% 
+  dplyr::rename (FM_block = FMBlock) %>%
+  # Create a new column to be able to identify the switch condition for each trial later
+  mutate (FM_trials_blocktrialnumber = paste (FM_block, FM_trials_loop.thisRepN, sep = '-'))  %>%
+  # Create a new column to identify which rows are not part of this task.
+  mutate (FM_deleterows = paste (FM_instruction_image, FM_trials_image, sep = '+'))  %>% 
+  # Create new column to identify block type
+  mutate(FM_trials_blocktype = recode_factor (FM_block, 
+                         `CCCC` = "pure", 
+                         `SSSS` = "pure",
+                         `SSCC` = "mixed",
+                         `CCSS` = "mixed")) %>% 
+  # Identify columns that have categorical information and labelled it specifically as a factor/category. This is useful for checking the data.
+  # (note - might not have identified all here - but have included the ones most useful for checking the data)
+  mutate (FM_deleterows = as.factor(FM_deleterows)) %>% 
+  mutate (FM_instruction_image = as.factor(FM_instruction_image)) %>% 
+  mutate (FM_trials_key_resp.keys = as.factor(FM_trials_key_resp.keys)) %>% 
+  mutate (FM_trials_image = as.factor(FM_trials_image)) %>% 
+  mutate (FM_block = as.factor(FM_block)) %>%
+  mutate (FM_trials_blocktrialnumber = as.factor(FM_trials_blocktrialnumber)) %>%
+  mutate (FM_trials_blocktype = as.factor(FM_trials_blocktype))  
+
+# Load the two conditions excel files to R - this is so that the various trial categories can be identified.
+fmcodes1 <- read_excel("FigureMatching_Conditions1.xlsx")
+fmcodes2 <- read_excel("FigureMatching_Conditions2.xlsx")        
+# Add the Conditions1 information to the R data table - same that as fmdata2, keeps all rows
+fmdata2 <-left_join(x = fmdata1, y = fmcodes1, by = "FM_trials_image")
+# Add the Conditions2 information to the R data table - same that as fmdata3, keeps all rows
+# Identify the new columns that have categorical information and labelled it specifically as a factor/category. This is useful for checking the data.
+# (note - might not have identified all here - but have included the ones most useful for checking the data)
+# (note - this would usually be done in Step 1, but calling up the excel files there was a bit complicated)
+fmdata3 <- left_join(x = fmdata2, y = fmcodes2, by = "FM_trials_blocktrialnumber") %>%
+  mutate (FM_trials_tasktype = as.factor(FM_trials_tasktype)) %>%
+  mutate (FM_trials_consistency = as.factor(FM_trials_congruency)) %>%
+  mutate (FM_trials_correctanswer = as.factor(FM_trials_correctanswer)) %>%
+  mutate (FM_trials_itemID = as.factor(FM_trials_itemID)) %>%
+  mutate (FM_trials_switchtype = as.factor(FM_trials_switchtype)) %>%
+# Create new columns to code for accuracy and determine RT to correct trials
+  mutate(FM_trials_accuracyscore = case_when (FM_trials_key_resp.keys == FM_trials_correctanswer ~ 1, TRUE ~ 0)) %>% 
+  mutate(FM_trials_accuracy = recode_factor (FM_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect")) %>% 
+  mutate(FM_trials_RTcorrect = case_when (FM_trials_accuracyscore == 1 ~ FM_trials_key_resp.rt))
+# Create a new data table (called ALLfigurematching) that includes only the Figure Matching columns. The ordering below is the order of the columns in the new data file.
+```
+```{r Figure Matching: Create full file}
+ALLfigurematching <- dplyr::select(.data = fmdata3, 
+                            FM_deleterows, ParticipantID, date, expName, psychopyVersion, OS, frameRate, FM_instruction_loop.thisRepN, FM_instruction_loop.thisTrialN, FM_instruction_loop.thisN, FM_instruction_loop.thisIndex, FM_instruction_loop.ran, FM_instruction_image,       FM_trials_key_resp.keys, FM_trials_key_resp.rt, FM_trials_image, FM_block, FM_trials_loop.thisRepN, FM_trials_loop.thisTrialN, FM_trials_loop.thisN, FM_trials_loop.thisIndex, FM_trials_loop.ran, FM_main_loop.thisRepN, FM_main_loop.thisTrialN, FM_main_loop.thisN, FM_main_loop.thisIndex, FM_main_loop.ran, FM_trials_blocktrialnumber, FM_trials_tasktype, FM_trials_consistency, FM_trials_correctanswer, FM_trials_itemID, FM_trials_switchtype, FM_trials_blocktype, FM_trials_accuracy, FM_trials_accuracyscore, FM_trials_RTcorrect) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+filter(FM_deleterows != "NA+NA")
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(ALLfigurematching)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(ALLfigurematching, "ALL_FigureMatching_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Figure Matching: Create file for analyses}
+# Create a new data table (called TRIALSfigurematching) that includes only trials for the figure matching task (so deletes the columns that are linked to the introduction, break or ending of the task). The ordering below is the order of the columns in the new data file. 
+TRIALSfigurematching <- dplyr::select(.data = ALLfigurematching, 
+                            ParticipantID, date, expName, psychopyVersion, OS, frameRate, FM_trials_key_resp.keys, FM_trials_key_resp.rt, FM_trials_image, FM_block, FM_trials_blocktrialnumber, FM_trials_tasktype, FM_trials_consistency, FM_trials_correctanswer, FM_trials_itemID, FM_trials_switchtype, FM_trials_blocktype, FM_trials_accuracy, FM_trials_accuracyscore, FM_trials_RTcorrect) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+drop_na(FM_trials_image) %>%
+# Delete the rows where switch type is Null (the first trial of each block)
+filter(FM_trials_switchtype != "Null")
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(TRIALSfigurematching)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(TRIALSfigurematching, "TRIALS_FigureMatching_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Flanker: Tidy}
+#Create a new data table called ftdata, then within the new data table will dplyr::rename some of the column headers. Unless otherwise noted this is to keep a consistent naming format across the columns/tasks, correct typos or make the heading label more clear.
+ftdata <- dplyr::rename (.data = ALLdata, FT_instruction_key_resp.keys = ft_instr_key_resp.keys) %>% 
+  dplyr::rename (FT_instruction_key_resp.rt = ft_instr_key_resp.rt) %>% 
+  dplyr::rename (FT_instruction_image = ft_instr) %>%
+  dplyr::rename (FT_instruction_loop.thisRepN = trials.thisRepN) %>%
+  dplyr::rename (FT_instruction_loop.thisTrialN = trials.thisTrialN) %>%
+  dplyr::rename (FT_instruction_loop.thisN = trials.thisN) %>%
+  dplyr::rename (FT_instruction_loop.thisIndex = trials.thisIndex) %>%
+  dplyr::rename (FT_instruction_loop.ran = trials.ran) %>%
+  dplyr::rename (FT_trials_loop.thisRepN = ft_trials.thisRepN) %>%
+  dplyr::rename (FT_trials_loop.thisTrialN = ft_trials.thisTrialN) %>%
+  dplyr::rename (FT_trials_loop.thisN = ft_trials.thisN) %>%
+  dplyr::rename (FT_trials_loop.thisIndex = ft_trials.thisIndex) %>%
+  dplyr::rename (FT_trials_loop.ran = ft_trials.ran) %>%
+  dplyr::rename (FT_trials_correctanswer = fish3) %>%
+  dplyr::rename (FT_trials_key_resp.keys = ft_response.keys) %>%
+  dplyr::rename (FT_trials_key_resp.rt = ft_response.rt) %>%
+  dplyr::rename (FT_trials_accuracyscore = ft_response.corr) %>%
+  dplyr::rename (FT_trials_type = ft_trial_type) %>%
+  dplyr::rename (FT_trials_image = ft_num) %>%
+  dplyr::rename (FT_break_key_resp.keys = ft_break_key_resp.keys) %>%
+  dplyr::rename (FT_break_key_resp.rt = ft_break_key_resp.rt) %>%
+  dplyr::rename (FT_main_loop.thisRepN = ft_blocks.thisRepN) %>%
+  dplyr::rename (FT_main_loop.thisTrialN = ft_blocks.thisTrialN) %>%
+  dplyr::rename (FT_main_loop.thisN = ft_blocks.thisN) %>%
+  dplyr::rename (FT_main_loop.thisIndex = ft_blocks.thisIndex) %>%
+  dplyr::rename (FT_main_loop.ran = ft_blocks.ran) %>%
+  # Create a new column to identify which rows are not part of this task.
+  mutate (FT_deleterows = paste (FT_instruction_image, FT_trials_image, FT_break_key_resp.keys, sep = '+'))  %>% 
+  # Identify columns that have categorical information and labelled it specifically as a factor/category. This is useful for checking the data.
+  # (note - might not have identified all here - but have included the ones most useful for checking the data)
+  mutate (FT_deleterows = as.factor(FT_deleterows)) %>% 
+  mutate (FT_trials_type = as.factor(FT_trials_type)) %>% 
+  mutate (FT_instruction_image = as.factor(FT_instruction_image)) %>% 
+  mutate (FT_trials_key_resp.keys = as.factor(FT_trials_key_resp.keys)) %>% 
+  mutate (FT_trials_image = as.factor(FT_trials_image)) %>% 
+  mutate (FT_break_key_resp.keys = as.factor(FT_break_key_resp.keys))%>% 
+  # Create new columns to inditate the correct answer and consistency conditions for each trial
+  mutate (FT_trials_consistency = recode_factor (FT_trials_type, 
+                         `congruent` = "congruent",
+                         `simple_incongruent` = "incongruent",
+                         `complex_incongruent` = "incongruent")) %>% 
+  mutate (FT_trials_complexity = recode_factor (FT_trials_type, 
+                         `congruent` = "NA",
+                         `simple_incongruent` = "simple",
+                         `complex_incongruent` = "complex")) %>% 
+  # Create new columns to code for accuracy and determine RT to correct trials
+  mutate(FT_trials_accuracyscore = case_when (FT_trials_key_resp.keys == FT_trials_correctanswer ~ 1, TRUE ~ 0)) %>% 
+  mutate(FT_trials_accuracy = recode_factor (FT_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect")) %>% 
+  mutate(FT_trials_RTcorrect = case_when (FT_trials_accuracyscore == 1 ~ FT_trials_key_resp.rt))
+```
+```{r Flanker: Create full file}
+# Create a new data table (called ALLflanker) that includes only the flanker task columns. The ordering below is the order of the columns in the new data file.  
+ALLflanker <- dplyr::select(.data = ftdata, 
+                            FT_deleterows, ParticipantID, date, expName, psychopyVersion, OS, frameRate, FT_instruction_key_resp.keys,  FT_instruction_key_resp.rt, FT_instruction_loop.thisRepN, FT_instruction_loop.thisTrialN, FT_instruction_loop.thisN, FT_instruction_loop.thisIndex, FT_instruction_loop.ran, FT_instruction_image, FT_trials_key_resp.keys, FT_trials_key_resp.rt, FT_trials_loop.thisRepN, FT_trials_loop.thisTrialN, FT_trials_loop.thisN, FT_trials_loop.thisIndex, FT_trials_loop.ran, FT_trials_image, FT_break_key_resp.keys, FT_break_key_resp.rt, FT_main_loop.thisRepN, FT_trials_complexity, FT_main_loop.thisTrialN, FT_main_loop.thisN, FT_main_loop.thisIndex, FT_main_loop.ran, FT_trials_correctanswer, FT_trials_consistency, FT_trials_type, FT_trials_accuracy, FT_trials_accuracyscore, FT_trials_RTcorrect) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+filter(FT_deleterows != "NA+NA+NA")
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(ALLflanker)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(ALLflanker, "ALL_Flanker_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Flanker: Create file for analyses}
+# Create a new data table (called TRIALSflanker) that includes only trials for the flanker task (so deletes the columns that are linked to the introduction, break or ending of the task). The ordering below is the order of the columns in the new data file. 
+TRIALSflanker <- dplyr::select(.data = ALLflanker, 
+                            ParticipantID, date, expName, psychopyVersion, OS, frameRate, FT_trials_key_resp.keys, FT_trials_key_resp.rt, FT_trials_image, FT_trials_correctanswer, FT_trials_consistency, FT_trials_type, FT_trials_complexity, FT_trials_accuracy, FT_trials_accuracyscore, FT_trials_RTcorrect) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+drop_na(FT_trials_image)
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(TRIALSflanker)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(TRIALSflanker, "TRIALS_Flanker_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Animism: Tidy}
+#Create a new data table called atdata1, then within that new file dplyr::rename some of the column headings - this extensive renaming is to deal with some of the trials not matching up in terms of columns.
+atdata <- dplyr::rename (.data = ALLdata, AT_instruction_loop.thisRepN = AT_instruction_loop.thisRepN) %>% 
+  dplyr::rename (AT_instruction_loop.thisTrialN = AT_instruction_loop.thisTrialN) %>% 
+  dplyr::rename (AT_instruction_loop.thisIndex = AT_instruction_loop.thisIndex) %>% 
+  dplyr::rename (AT_instruction_loop.ran = AT_instruction_loop.ran) %>% 
+  dplyr::rename (AT_instruction_image = ATInstrImage) %>% 
+  dplyr::rename (AT_trials_key_resp.keys = AT_trials_key_resp.keys) %>% 
+  dplyr::rename (AT_trials_accuracyscore = AT_trials_key_resp.corr) %>% 
+  dplyr::rename (AT_trials_key_resp.rt = AT_trials_key_resp.rt) %>% 
+  dplyr::rename (AT_trials.thisRepN = AT_trials.thisRepN) %>% 
+  dplyr::rename (AT_trials.thisTrialN = AT_trials.thisTrialN) %>% 
+  dplyr::rename (AT_trials.thisN = AT_trials.thisN) %>% 
+  dplyr::rename (AT_trials.thisIndex = AT_trials.thisIndex) %>% 
+  dplyr::rename (AT_trials.ran = AT_trials.ran) %>% 
+  dplyr::rename (AT_trials_image = AT_pic_display) %>% 
+  dplyr::rename (AT_trials_moving = AT_moving) %>% 
+  dplyr::rename (AT_trials_living = AT_living) %>% 
+  dplyr::rename (AT_trials_correctanswer = AT_corrAns) %>% 
+  dplyr::rename (AT_end_key_resp.keys = AT_end_key_resp.keys) %>% 
+  dplyr::rename (AT_end_key_resp.rt = AT_end_key_resp.rt) %>% 
+  dplyr::rename (AT_blocks.thisRepN = AT_blocks.thisRepN) %>% 
+  dplyr::rename (AT_blocks.thisTrialN = AT_blocks.thisTrialN) %>% 
+  dplyr::rename (AT_blocks.thisN = AT_blocks.thisN) %>% 
+  dplyr::rename (AT_blocks.thisIndex = AT_blocks.thisIndex) %>% 
+  dplyr::rename (AT_blocks.ran = AT_blocks.ran) %>% 
+    # Create a new column to identify which rows are not part of this task.
+  mutate (AT_deleterows = paste (AT_instruction_image, AT_trials_image, AT_end_key_resp.keys, sep = '+'))  %>% 
+  # Identify columns that have categorical information and labelled it specifically as a factor/category. This is useful for checking the data.
+  # (note - might not have identified all here - but have included the ones most useful for checking the data)
+  mutate (AT_deleterows = as.factor(AT_deleterows)) %>% 
+  mutate (AT_instruction_image = as.factor(AT_instruction_image)) %>% 
+  mutate (AT_trials_key_resp.keys = as.factor(AT_trials_key_resp.keys)) %>% 
+  mutate (AT_trials_image = as.factor(AT_trials_image)) %>% 
+  mutate (AT_end_key_resp.keys = as.factor(AT_end_key_resp.keys)) %>%
+  mutate (AT_trials_moving = as.character(AT_trials_moving)) %>% 
+  mutate (AT_trials_living = as.character(AT_trials_living)) %>%
+  mutate (AT_trials_accuracyscore = as.character(AT_trials_accuracyscore)) %>% 
+  # Create a new column to clearly identify image name. This code is long because there are 77 images
+  mutate(AT_trials_imagename = recode_factor (AT_trials_image, `AT_Asset/Insect1.png` = "Insect1", `AT_Asset/Insect2.png` = "Insect2", `AT_Asset/Insect3.png` = "Insect3", `AT_Asset/Insect4.png` = "Insect4", `AT_Asset/Insect5.png` = "Insect5", `AT_Asset/Insect6.png` = "Insect6", `AT_Asset/Insect7.png` = "Insect7", `AT_Asset/Mammal1.png` = "Mammal1", `AT_Asset/Mammal2.png` = "Mammal2", `AT_Asset/Mammal3.png` = "Mammal3", `AT_Asset/Mammal4.png` = "Mammal4", `AT_Asset/Mammal5.png` = "Mammal5", `AT_Asset/Mammal6.png` = "Mammal6", `AT_Asset/Mammal7.png` = "Mammal7", `AT_Asset/Flower1.png` = "Flower1", `AT_Asset/Flower2.png` = "Flower2", `AT_Asset/Flower3.png` = "Flower3", `AT_Asset/Flower4.png` = "Flower4", `AT_Asset/Flower5.png` = "Flower5", `AT_Asset/Flower6.png` = "Flower6", `AT_Asset/Flower7.png` = "Flower7", `AT_Asset/Tree1.png` = "Tree1", `AT_Asset/Tree2.png` = "Tree2", `AT_Asset/Tree3.png` = "Tree3", `AT_Asset/Tree4.png` = "Tree4", `AT_Asset/Tree5.png` = "Tree5", `AT_Asset/Tree6.png` = "Tree6", `AT_Asset/Tree7.png` = "Tree7", `AT_Asset/Celestial1.png` = "Celestial1", `AT_Asset/Celestial2.png` = "Celestial2", `AT_Asset/Celestial3.png` = "Celestial3", `AT_Asset/Celestial4.png` = "Celestial4", `AT_Asset/Celestial5.png` = "Celestial5", `AT_Asset/Celestial6.png` = "Celestial6", `AT_Asset/Celestial7.png` = "Celestial7", `AT_Asset/Vehicle1.png` = "Vehicle1", `AT_Asset/Vehicle2.png` = "Vehicle2", `AT_Asset/Vehicle3.png` = "Vehicle3", `AT_Asset/Vehicle4.png` = "Vehicle4", `AT_Asset/Vehicle5.png` = "Vehicle5", `AT_Asset/Vehicle6.png` = "Vehicle6", `AT_Asset/Vehicle7.png` = "Vehicle7", `AT_Asset/StaticObject1.png` = "StaticObject1", `AT_Asset/StaticObject2.png` = "StaticObject2", `AT_Asset/StaticObject3.png` = "StaticObject3", `AT_Asset/StaticObject4.png` = "StaticObject4", `AT_Asset/StaticObject5.png` = "StaticObject5", `AT_Asset/StaticObject6.png` = "StaticObject6", `AT_Asset/StaticObject7.png` = "StaticObject7", `AT_Asset/Tool1.png` = "Tool1", `AT_Asset/Tool2.png` = "Tool2", `AT_Asset/Tool3.png` = "Tool3", `AT_Asset/Tool4.png` = "Tool4", `AT_Asset/Tool5.png` = "Tool5", `AT_Asset/Tool6.png` = "Tool6", `AT_Asset/Tool7.png` = "Tool7", )) %>% 
+  # Create a new column because the initial column for image group name has erorrs, sometimes it is the name but other times is the image number. This code is very long becuase of the number of different items and needed to make sure this code works across the various psychopy experiment orderings
+  mutate(AT_trials_imagegroup = recode_factor (AT_trials_imagename, `Insect` = "Insect", `Insect1` = "Insect", `Insect2` = "Insect", `Insect3` = "Insect", `Insect4` = "Insect", `Insect5` = "Insect", `Insect6` = "Insect", `Insect7` = "Insect", `Mammal` = "Mammal", `Mammal1` = "Mammal", `Mammal2` = "Mammal", `Mammal3` = "Mammal", `Mammal4` = "Mammal", `Mammal5` = "Mammal", `Mammal6` = "Mammal", `Mammal7` = "Mammal", `Flower` = "Flower", `Flower1` = "Flower", `Flower2` = "Flower", `Flower3` = "Flower", `Flower4` = "Flower", `Flower5` = "Flower", `Flower6` = "Flower", `Flower7` = "Flower", `Tree` = "Tree", `Tree1` = "Tree", `Tree2` = "Tree", `Tree3` = "Tree", `Tree4` = "Tree", `Tree5` = "Tree", `Tree6` = "Tree", `Tree7` = "Tree", `Celestial` = "Celestial", `Celestial1` = "Celestial", `Celestial2` = "Celestial", `Celestial3` = "Celestial", `Celestial4` = "Celestial", `Celestial5` = "Celestial", `Celestial6` = "Celestial", `Celestial7` = "Celestial", `Vehicle` = "Vehicle", `Vehicle1` = "Vehicle", `Vehicle2` = "Vehicle", `Vehicle3` = "Vehicle", `Vehicle4` = "Vehicle", `Vehicle5` = "Vehicle", `Vehicle6` = "Vehicle", `Vehicle7` = "Vehicle", `StaticObject` = "StaticObject", `StaticObject1` = "StaticObject", `StaticObject2` = "StaticObject", `StaticObject3` = "StaticObject", `StaticObject4` = "StaticObject", `StaticObject5` = "StaticObject", `StaticObject6` = "StaticObject", `StaticObject7` = "StaticObject", `Tool` = "Tool", `Tool1` = "Tool", `Tool2` = "Tool", `Tool3` = "Tool", `Tool4` = "Tool", `Tool5` = "Tool", `Tool6` = "Tool", `Tool7` = "Tool", )) %>% 
+  # Create new columns to identify which trials are living/non-living and moving/stationary.
+  mutate(AT_trials_livingtype = recode_factor (AT_trials_living, `1` = "living", 
+                                         `0` = "non-living")) %>%
+  mutate(AT_trials_movingtype = recode_factor (AT_trials_moving, `1` = "moving",
+                                          `0` = "non-moving")) %>%
+  # Create new column to indicate task type (living v non-living)
+  mutate(AT_trials_tasktype = AT_trials_livingtype) %>% 
+  # Create new column to indicate congruent vs incongruent
+  mutate(AT_trials_consistency = case_when(AT_trials_livingtype == "living" & AT_trials_movingtype == "moving" ~ "congruent",
+                                            AT_trials_livingtype == "living" & AT_trials_movingtype == "non-moving" ~ "incongruent",
+                                            AT_trials_livingtype == "non-living" & AT_trials_movingtype == "moving" ~ "incongruent",
+                                            AT_trials_livingtype == "non-living" & AT_trials_movingtype == "non-moving" ~ "congruent"))%>% 
+  # Create new columns to code for accuracy and determine RT to correct trials
+  mutate(AT_trials_accuracy = recode_factor (AT_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect")) %>% 
+  mutate(AT_trials_RTcorrect = case_when (AT_trials_accuracyscore == 1 ~ AT_trials_key_resp.rt))
+```
+```{r Animism: Create full file}
+# Create a new data table (called ALLanimism) that includes only the animism columns. The ordering below is the order of the columns in the new data file.
+ALLanimism <- dplyr::select(.data = atdata, 
+ ParticipantID, date, expName, psychopyVersion, OS, frameRate, AT_instruction_loop.thisRepN, AT_instruction_loop.thisTrialN, AT_instruction_loop.thisN, AT_instruction_loop.thisIndex, AT_instruction_loop.ran, AT_instruction_image, AT_trials_image, AT_trials_imagename, AT_trials_key_resp.keys, AT_trials_key_resp.rt, AT_trials.thisRepN, AT_trials.thisTrialN, AT_trials.thisN, AT_trials.thisIndex, AT_trials.ran, AT_trials_correctanswer, AT_trials_imagegroup, AT_trials_livingtype, AT_trials_movingtype, AT_trials_accuracyscore, AT_trials_accuracy, AT_trials_RTcorrect,AT_trials_consistency) 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(ALLanimism)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(ALLanimism, "ALL_Animism_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Animism: Create file for analyses}
+# Create a new data table (called TRIALSanimism) that includes only trials for the animism task (so deletes the columns that are linked to the introduction, break or ending of the task). The ordering below is the order of the columns in the new data file. 
+TRIALSanimism <- dplyr::select(.data = ALLanimism, 
+                            ParticipantID, date, expName, psychopyVersion, OS, frameRate, AT_trials_image, AT_trials_imagename, AT_trials_key_resp.keys, AT_trials_key_resp.rt,AT_trials_correctanswer, AT_trials_imagegroup, AT_trials_livingtype, AT_trials_movingtype, AT_trials_accuracyscore, AT_trials_accuracy, AT_trials_RTcorrect,AT_trials_consistency) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+drop_na(AT_trials_image)
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(TRIALSanimism)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(TRIALSanimism, "TRIALS_Animism_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Science Statements: Tidy}
+#Create a new data table called scidata1, then within that new file dplyr::rename some of the column headings - this extensive renaming is to deal with some of the tasks having different column headings than others - meaning it shows up as different columns when all files are bound together.
+scidata <- dplyr::rename (.data = ALLdata, RS_instruction_key_resp.keys = RS_instr_key_resp.keys) %>% 
+  dplyr::rename (RS_instruction_key_resp.rt = RS_instr_key_resp.rt) %>% 
+  dplyr::rename (RS_instruction_loop.thisRepN = RS_instruction_loop.thisRepN) %>% 
+  dplyr::rename (RS_instruction_loop.thisTrialN = RS_instruction_loop.thisTrialN) %>% 
+  dplyr::rename (RS_instruction_loop.thisN = RS_instruction_loop.thisN) %>% 
+  dplyr::rename (RS_instruction_loop.thisIndex = RS_instruction_loop.thisIndex) %>% 
+  dplyr::rename (RS_instruction_loop.ran = RS_instruction_loop.ran) %>% 
+  dplyr::rename (RS_instruction_image = RSInstrImage) %>% 
+  dplyr::rename (RS_trials_key_resp.keys = RS_sentence_key_resp.keys) %>% 
+  dplyr::rename (RS_trials_accuracyscore = RS_sentence_key_resp.corr) %>% 
+  dplyr::rename (RS_trials_key_resp.rt = RS_sentence_key_resp.rt) %>% 
+  dplyr::rename (RS_trials_image = sentence) %>% 
+  dplyr::rename (RS_trials_set = Set_use) %>% 
+  dplyr::rename (RS_trials_subject = Subject) %>% 
+  dplyr::rename (RS_trials_domain = Domain) %>% 
+  dplyr::rename (RS_trials_concept = Concept) %>% 
+  dplyr::rename (RS_trials_theory1truth = Theory_1_Truth) %>% 
+  dplyr::rename (RS_trials_theory2truth = Theory_2_Truth) %>% 
+  dplyr::rename (RS_trials_trueresponse = RS_corrAns) %>% 
+  # Create a new column to identify which rows are not part of this task.
+  mutate (RS_deleterows = paste (RS_instruction_image, RS_trials_image, sep = '+'))  %>% 
+  # Identify columns that have categorical information and labelled it specifically as a factor/category. This is useful for checking the data.
+  # (note - might not have identified all here - but have included the ones most useful for checking the data)
+  mutate (RS_deleterows = as.factor(RS_deleterows)) %>% 
+  mutate (RS_instruction_image = as.factor(RS_instruction_image)) %>% 
+  mutate (RS_trials_key_resp.keys = as.factor(RS_trials_key_resp.keys)) %>% 
+  mutate (RS_trials_image = as.factor(RS_trials_image)) %>% 
+  mutate (RS_trials_set = as.factor(RS_trials_set)) %>%
+  mutate (RS_trials_domain = as.factor(RS_trials_domain)) %>%
+  mutate (RS_trials_concept = as.factor(RS_trials_concept)) %>%
+  mutate (RS_trials_trueresponse = as.factor(RS_trials_trueresponse)) %>%
+  mutate (RS_trials_theory1truth = as.factor(RS_trials_theory1truth)) %>%
+  mutate (RS_trials_theory2truth = as.factor(RS_trials_theory2truth)) %>%
+  # Recoded some of the information in some columns so that it was not all uppercase (will be useful for creating accuracy scores)
+  mutate(RS_trials_theory1truth = recode_factor (RS_trials_theory1truth, 
+                         `T` = "true", 
+                         `F` = "false")) %>% 
+  mutate(RS_trials_theory2truth = recode_factor (RS_trials_theory2truth, 
+                         `T` = "true", 
+                         `F` = "false")) %>% 
+  # Create new column to classify participant response at true or false
+  mutate(RS_trials_responsetype = case_when(RS_trials_key_resp.keys == "left" & RS_trials_trueresponse == "left" ~ "true",
+                                            RS_trials_key_resp.keys == "left" & RS_trials_trueresponse == "right" ~ "false",
+                                            RS_trials_key_resp.keys == "right" & RS_trials_trueresponse == "right" ~ "true",
+                                            RS_trials_key_resp.keys == "right" & RS_trials_trueresponse == "left" ~ "false")) %>%
+  # Create new columns to code for accuracy and determine RT to correct trials
+  mutate(RS_trials_accuracy = recode_factor (RS_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect")) %>% 
+  # Create new column to indicate task type (physics vs biology)
+  mutate(RS_trials_tasktype = recode_factor (RS_trials_domain, 
+                         `Matter` = "physics", 
+                         `Astronomy` = "physics", 
+                         `Mechanics` = "physics", 
+                         `Genetics` = "biology",
+                         `Evolution` = "biology",
+                         `Germs` = "biology",
+                         `Physiology` = "biology")) %>% 
+   # Create new column to indicate congruent vs incongruent
+  mutate(RS_trials_consistency = case_when( RS_trials_theory1truth == "TRUE" & RS_trials_theory2truth == "TRUE" ~ "congruent",
+                                            RS_trials_theory1truth == "TRUE" & RS_trials_theory2truth == "FALSE" ~ "incongruent",
+                                           RS_trials_theory1truth == "FALSE" & RS_trials_theory2truth == "TRUE" ~ "incongruent",
+                                            RS_trials_theory1truth == "FALSE" & RS_trials_theory2truth == "FALSE" ~ "congruent")) %>%
+   # Create new column to indicate truth type
+  mutate(RS_trials_truthtype = case_when(RS_trials_theory1truth == "TRUE" & RS_trials_theory2truth == "TRUE" ~ "both true",
+                                            RS_trials_theory1truth == "TRUE" & RS_trials_theory2truth == "FALSE" ~ "theory 1 true",
+                                            RS_trials_theory1truth == "FALSE" & RS_trials_theory2truth == "TRUE" ~ "theory 2 true",
+                                           RS_trials_theory1truth == "FALSE" & RS_trials_theory2truth == "FALSE" ~ "both false")) %>%
+  
+  mutate(RS_trials_RTcorrect = case_when (RS_trials_accuracyscore == 1 ~ RS_trials_key_resp.rt))
+```
+```{r Science Statements: Create full file}
+# Create a new data table (called ALLstatements) that includes only the science statements columns. The ordering below is the order of the columns in the new data file.
+ALLstatements <- dplyr::select(.data = scidata, 
+                            RS_deleterows, ParticipantID, date, expName, psychopyVersion, OS, frameRate, RS_instruction_loop.thisRepN, RS_instruction_loop.thisTrialN, RS_instruction_loop.thisN, RS_instruction_loop.thisIndex, RS_instruction_loop.ran, RS_instruction_image, RS_trials_key_resp.keys, RS_trials_key_resp.rt, RS_trials.thisRepN, RS_trials.thisTrialN, RS_trials.thisN, RS_trials.thisIndex,  RS_trials.ran, RS_trials_image, RS_trials_set, RS_trials_domain, RS_trials_concept, RS_trials_theory1truth, RS_trials_theory2truth, RS_end_key_resp.keys, RS_end_key_resp.rt, RS_trials_responsetype, RS_trials_accuracy, RS_trials_accuracyscore, RS_trials_RTcorrect, RS_trials_trueresponse, RS_trials_tasktype,RS_trials_consistency,RS_trials_truthtype) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+filter(RS_deleterows != "NA+NA")
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(ALLstatements)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(ALLstatements, "ALL_ScienceStatements_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Science Statements: Create file for analyses}
+# Create a new data table (called TRIALSstatements) that includes only trials for the science statements task (so deletes the columns that are linked to the introduction, break or ending of the task). The ordering below is the order of the columns in the new data file. 
+# Note the columns RS_trials_trueleftcorrect and RS_trials_truerightcorrect are confusing for the analyses and so are excluded here as well.
+TRIALSstatements <- dplyr::select(.data = ALLstatements, 
+                            ParticipantID, date, expName, psychopyVersion, OS, frameRate, RS_trials_key_resp.keys, RS_trials_key_resp.rt, RS_trials_image, RS_trials_set, RS_trials_tasktype, RS_trials_domain, RS_trials_concept, RS_trials_theory1truth, RS_trials_theory2truth, RS_trials_responsetype, RS_trials_accuracy, RS_trials_trueresponse, RS_trials_accuracyscore, RS_trials_RTcorrect,RS_trials_consistency,RS_trials_truthtype) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+drop_na(RS_trials_image)
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+TRIALSstatements <- TRIALSstatements[TRIALSstatements$RS_trials_image != "Plants turn food into energy.", ]
+write.csv(TRIALSstatements, "TRIALS_ScienceStatements_UK.csv", row.names = FALSE) 
+
+# Regarding statement that "植物把食物变成能量/Plants turn food into energy" there was different results between the accuracy obtained in our previous research and the results from (Shtulman and Valcarcel, (2012)’ s original paper. After consulting with several biology teachers, we added the statement "Viruses turn food into energy." Experiments show that in the United Kingdom, the accuracy for "Viruses turn food into energy" is 78.4%, while for "Plants turn food into energy" it is 19.5%. In China, the accuracy for "Viruses turn food into energy" is 66.4%, and for "Plants turn food into energy," it is 50.2%. Therefore, in our final analysis, we chose to only analyse the statement "Viruses turn food into energy."
+
+```
+```{r Buoyancy Task: Tidy}
+btdata <- dplyr::rename (.data = ALLdata, BT_instruction_key_resp.keys = pt_instr_key_resp.keys) %>% 
+  dplyr::rename (BT_instruction_key_resp.rt = pt_instr_key_resp.rt) %>% 
+  dplyr::rename (BT_instruction_loop.thisRepN = pt_instr_loop.thisRepN) %>% 
+  dplyr::rename (BT_instruction_loop.thisTrialN = pt_instr_loop.thisTrialN) %>% 
+  dplyr::rename (BT_instruction_loop.thisN = pt_instr_loop.thisN) %>% 
+  dplyr::rename (BT_instruction_loop.thisIndex = pt_instr_loop.thisIndex) %>% 
+  dplyr::rename (BT_instruction_loop.ran = pt_instr_loop.ran) %>% 
+  dplyr::rename (BT_instruction_image = pt_instr) %>% 
+  dplyr::rename (BT_trials_key_resp.keys = pt_response.keys) %>% 
+  dplyr::rename (BT_trials_accuracyscore = pt_response.corr) %>% 
+  dplyr::rename (BT_trials_key_resp.rt = pt_response.rt) %>% 
+  dplyr::rename (BT_trials.thisRepN = pt_trials.thisRepN) %>% 
+  dplyr::rename (BT_trials.thisTrialN = pt_trials.thisTrialN) %>% 
+  dplyr::rename (BT_trials.thisN = pt_trials.thisN) %>% 
+  dplyr::rename (BT_trials.thisIndex = pt_trials.thisIndex) %>% 
+  dplyr::rename (BT_trials.ran = pt_trials.ran) %>% 
+  dplyr::rename (BT_trials_leftpicture = pt_left_pic) %>% 
+  dplyr::rename (BT_trials_rightpicture = pt_right_pic) %>% 
+  dplyr::rename (BT_trials_leftsize = pt_left_size) %>% 
+  dplyr::rename (BT_trials_rightsize = pt_right_size) %>% 
+  dplyr::rename (BT_trials_correctanswer = pt_corr_ans) %>% 
+  dplyr::rename (BT_trials_consistency = pt_trial_type_three) %>% 
+  dplyr::rename (BT_trials_type = pt_trial_type_five) %>% 
+  dplyr::rename (BT_break_key_resp.keys = pt_break_key_resp.keys) %>% 
+  dplyr::rename (BT_break_key_resp.rt = pt_break_key_resp.rt) %>% 
+  dplyr::rename (BT_blocks.thisRepN = pt_blocks.thisRepN) %>% 
+  dplyr::rename (BT_blocks.thisTrialN = pt_blocks.thisTrialN) %>% 
+  dplyr::rename (BT_blocks.thisN = pt_blocks.thisN) %>% 
+  dplyr::rename (BT_blocks.thisIndex = pt_blocks.thisIndex) %>% 
+  dplyr::rename (BT_blocks.ran = pt_blocks.ran) %>% 
+  dplyr::rename (BT_condition_file = pt_condition_file) %>% 
+  # Create a new column to identify which rows are not part of this task.
+  mutate (BT_deleterows = paste (BT_instruction_image, BT_trials_leftpicture, sep = '+'))  %>% 
+  # Identify columns that have categorical information and labelled it specifically as a factor/category. This is useful for checking the data.
+  # (note - might not have identified all here - but have included the ones most useful for checking the data)
+  mutate (BT_deleterows = as.factor(BT_deleterows)) %>% 
+  mutate (BT_instruction_image = as.factor(BT_instruction_image)) %>% 
+  mutate (BT_trials_key_resp.keys = as.factor(BT_trials_key_resp.keys)) %>% 
+  mutate (BT_trials_intuition = as.factor(BT_trials_consistency)) %>%
+  mutate (BT_trials_type = as.factor(BT_trials_type)) %>%
+  mutate (BT_trials_leftpicture = as.factor(BT_trials_leftpicture)) %>%
+  mutate (BT_trials_rightpicture = as.factor(BT_trials_rightpicture)) %>%
+  mutate (BT_trials_rightsize = as.factor(BT_trials_rightsize)) %>%
+  mutate (BT_trials_correctanswer = as.factor(BT_trials_correctanswer)) %>%
+  mutate (BT_break_key_resp.keys = as.factor(BT_break_key_resp.keys)) %>%
+  mutate (BT_condition_file = as.factor(BT_condition_file)) %>%
+  # Create new columns to code for accuracy and determine RT to correct trials
+  mutate(BT_trials_accuracy = recode_factor (BT_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect")) %>%
+  mutate(BT_trials_consistency = recode_factor (BT_trials_intuition, 
+                         `Neutral` = "NA", 
+                         `Counter intuitive` = "incongruent",
+                         `Intuitive` = "congruent")) %>%
+  mutate(BT_trials_RTcorrect = case_when (BT_trials_accuracyscore == 1 ~ BT_trials_key_resp.rt))
+```
+```{r Buoyancy Task: Create full file}
+# Create a new data table (called ALLstatements) that includes only the science statements columns. The ordering below is the order of the columns in the new data file.
+ALLBuoyancy <- dplyr::select(.data = btdata, 
+                            BT_deleterows, ParticipantID, date, expName, psychopyVersion, OS, frameRate, BT_trials_key_resp.keys, BT_instruction_key_resp.rt, BT_instruction_loop.thisRepN, BT_instruction_loop.thisTrialN, BT_instruction_loop.thisN, BT_instruction_loop.thisIndex, BT_instruction_loop.ran, BT_instruction_image, BT_trials_key_resp.keys, BT_trials_accuracyscore, BT_trials_key_resp.rt, BT_trials.thisRepN, BT_trials.thisTrialN, BT_trials.thisN, BT_trials.thisIndex, BT_trials.ran, BT_trials_leftpicture , BT_trials_rightpicture, BT_trials_leftsize, BT_trials_rightsize, BT_trials_correctanswer, BT_trials_consistency, BT_trials_intuition, BT_trials_type, BT_break_key_resp.keys, BT_break_key_resp.rt, BT_blocks.thisRepN, BT_blocks.thisTrialN , BT_blocks.thisN, BT_blocks.thisIndex, BT_blocks.ran, BT_condition_file,BT_trials_accuracy,BT_trials_RTcorrect)%>%
+
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+filter(BT_deleterows != "NA+NA")
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(ALLBuoyancy)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(ALLBuoyancy, "ALL_BuoyancyTask_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r Buoyancy Task: Create file for analyses}
+# Create a new data table (called TRIALSstatements) that includes only trials for the science statements task (so deletes the columns that are linked to the introduction, break or ending of the task). The ordering below is the order of the columns in the new data file. 
+# Note the columns RS_trials_trueleftcorrect and RS_trials_truerightcorrect are confusing for the analyses and so are excluded here as well.
+TRIALSBuoyancy <- dplyr::select(.data = ALLBuoyancy, 
+                            ParticipantID, date, expName, psychopyVersion, OS, frameRate, BT_trials_key_resp.keys,  BT_trials_key_resp.rt, BT_trials_accuracyscore, BT_trials_key_resp.rt, BT_trials_leftpicture , BT_trials_rightpicture, BT_trials_leftsize, BT_trials_rightsize, BT_trials_correctanswer, BT_trials_consistency, BT_trials_intuition,  BT_trials_type,BT_trials_accuracy,BT_trials_RTcorrect) %>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+drop_na(BT_trials_leftpicture)
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(TRIALSBuoyancy)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(TRIALSBuoyancy, "TRIALS_BuoyancyTask_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r MatrixReasoning: Create file for analyses}
+MRIBdata <- dplyr::rename (.data = ALLdata, MRIB_instruction_key_resp.keys = MRIB_instr_key_resp.keys) %>% 
+  dplyr::rename (MRIB_instruction_key_resp.rt = MRIB_instr_key_resp.rt) %>% 
+  dplyr::rename (MRIB_instruction_loop.thisN = MRIB_instr_loop.thisN) %>% 
+  dplyr::rename (MRIB_instruction_loop.thisRepN = MRIB_instr_loop.thisRepN) %>% 
+  dplyr::rename (MRIB_instruction_loop.thisTrialN = MRIB_instr_loop.thisTrialN) %>% 
+  dplyr::rename (MRIB_instruction_loop.thisIndex = MRIB_instr_loop.thisIndex) %>% 
+  dplyr::rename (MRIB_instruction_loop.ran = MRIB_instr_loop.ran) %>% 
+  dplyr::rename (MRIB_instruction_image = MRIB_instr_pic) %>% 
+  dplyr::rename (MRIB_trialsre_response_x = MRIB_response_main.x) %>% 
+  dplyr::rename (MRIB_trialsre_response_y = MRIB_response_main.y) %>% 
+  dplyr::rename (MRIB_trialsre_response_leftButton = MRIB_response_main.leftButton) %>% 
+  dplyr::rename (MRIB_trialsre_response_midButton = MRIB_response_main.midButton) %>% 
+  dplyr::rename (MRIB_trialsre_response_rightButton = MRIB_response_main.rightButton) %>% 
+  dplyr::rename (MRIB_trials_accuracyscore = MRIB_response.corr) %>% 
+  dplyr::rename (MRIB_trials_key_resp.rt = MRIB_response_main.time) %>% 
+  dplyr::rename (MRIB_trials_clickanswer = MRIB_response_main.clicked_name) %>% 
+  dplyr::rename (MRIB_trials.thisRepN = MRIB_trials.thisRepN) %>% 
+  dplyr::rename (MRIB_trials.thisTrialN = MRIB_trials.thisTrialN) %>% 
+  dplyr::rename (MRIB_trials.thisN = MRIB_trials.thisN) %>% 
+  dplyr::rename (MRIB_trials.thisIndex = MRIB_trials.thisIndex) %>% 
+  dplyr::rename (MRIB_trials.ran = MRIB_trials.ran) %>% 
+  dplyr::rename (MRIB_trials_middle_pic = MRIB_question_pic) %>% 
+  dplyr::rename (MRIB_trials_option_a = MRIB_option_a) %>% 
+  dplyr::rename (MRIB_trials_option_b = MRIB_option_b) %>% 
+  dplyr::rename (MRIB_trials_option_c = MRIB_option_c) %>% 
+  dplyr::rename (MRIB_trials_option_d = MRIB_option_d) %>% 
+  dplyr::rename (MRIB_trials_correctanswer = MRIB_corrAns) %>% 
+  dplyr::rename (MRIB_end_key_resp.keys = MRIB_end_key_resp.keys) %>% 
+  dplyr::rename (MRIB_end_key_resp.rt = MRIB_end_key_resp.rt) %>% 
+  mutate (MRIB_ss_level = str_sub(string = MRIB_trials_option_a, start = 19, end = 23))%>% 
+  mutate (MRIB_md_level = str_sub(string = MRIB_trials_option_a, start = 23, end = 25))%>%
+  mutate (MRIB_trials_key_resp.keys = str_sub(string = MRIB_trials_clickanswer, start = 13, end = 13))%>%
+  mutate (MRIB_ss_level = as.factor(MRIB_ss_level))%>% 
+  mutate (MRIB_md_level = as.factor(MRIB_md_level))%>%
+  mutate (MRIB_difficulty_level = recode_factor (MRIB_ss_level, 
+                         `_ss1_` = "level_1", 
+                         `_ss2_` = "level_2",
+                         `_ss3_` = "level_3",
+                         `ss1_m` = "level_1",
+                         `ss2_m` = "level_2",
+                         `ss3_m` = "level_3"))%>%
+  mutate (MRIB_md_level = recode_factor (MRIB_md_level, 
+                         `_pd` = "pd", 
+                         `_md` = "md",
+                         `md.` = "md"))%>%
+  mutate (MRIB_deleterows = paste (MRIB_trials_option_a))  %>% 
+  mutate (MRIB_instruction_image = as.factor(MRIB_instruction_image)) %>% 
+  mutate (MRIB_trials_key_resp.keys = as.factor(MRIB_trials_key_resp.keys)) %>% 
+  mutate (MRIB_trials_middle_pic = as.factor(MRIB_trials_middle_pic)) %>%
+  mutate (MRIB_trials_option_a = as.factor(MRIB_trials_option_a)) %>%
+  mutate (MRIB_trials_option_b = as.factor(MRIB_trials_option_b)) %>%
+  mutate (MRIB_trials_option_c = as.factor(MRIB_trials_option_c)) %>%
+  mutate (MRIB_trials_option_d = as.factor(MRIB_trials_option_d)) %>%
+  mutate (MRIB_trials_correctanswer = as.factor(MRIB_trials_correctanswer)) %>%
+  mutate (MRIB_end_key_resp.keys = as.factor(MRIB_end_key_resp.keys)) %>%
+  mutate (MRIB_difficulty_level = as.factor(MRIB_difficulty_level)) %>%
+  mutate (MRIB_md_level = as.factor(MRIB_md_level)) %>%
+  mutate(SS_trials_accuracyscore = case_when (is.na(MRIB_trials_accuracyscore) ~ 0)) %>% 
+  # Create new columns to code for accuracy and determine RT to correct trials
+  mutate(MRIB_trials_accuracy = recode_factor (MRIB_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect")) %>%
+  mutate(MRIB_trials_RTcorrect = case_when (MRIB_trials_accuracyscore == 1 ~ MRIB_trials_key_resp.rt))
+```
+```{r MatrixReasoning: Create full file}
+ALLmrib <- dplyr::select(.data = MRIBdata, 
+                             MRIB_deleterows,ParticipantID, date, expName, psychopyVersion, OS, frameRate, MRIB_instruction_key_resp.keys, MRIB_instruction_key_resp.rt, MRIB_instruction_loop.thisN, MRIB_instruction_loop.thisRepN, MRIB_instruction_loop.thisTrialN, MRIB_instruction_loop.thisIndex, MRIB_instruction_loop.ran, MRIB_instruction_image, MRIB_trialsre_response_x, MRIB_trialsre_response_y, MRIB_trialsre_response_leftButton, MRIB_trialsre_response_midButton, MRIB_trialsre_response_rightButton, MRIB_trials_accuracyscore, MRIB_trials_key_resp.rt, MRIB_trials_clickanswer, MRIB_trials.thisRepN, MRIB_trials.thisTrialN , MRIB_trials.thisN, MRIB_trials.thisIndex, MRIB_trials.ran, MRIB_trials_middle_pic, MRIB_trials_option_a , MRIB_trials_option_b, MRIB_trials_option_c , MRIB_trials_option_d, MRIB_trials_correctanswer, MRIB_end_key_resp.keys , MRIB_end_key_resp.rt, MRIB_difficulty_level, MRIB_md_level, MRIB_trials_key_resp.keys, MRIB_trials_accuracy, MRIB_trials_RTcorrect)%>% 
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+filter(MRIB_deleterows != "NA")
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(ALLmrib)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(ALLmrib, "ALL_mribdata_UK.csv", row.names = FALSE, sep="\t")
+```
+```{r MatrixReasoning: Create file for analyses}
+TRIALSmrib <- dplyr::select(.data = ALLmrib, 
+                        ParticipantID, date, expName, psychopyVersion, OS, frameRate, MRIB_trials_accuracyscore, MRIB_trials_key_resp.rt, MRIB_trials_key_resp.keys, MRIB_trials_clickanswer, MRIB_trials_correctanswer, MRIB_difficulty_level, MRIB_md_level, MRIB_trials_accuracy, MRIB_trials_RTcorrect)
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(TRIALSmrib)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import. 
+write.csv(TRIALSmrib, "TRIALS_MRIB_UK.csv", row.names = FALSE, sep="\t")
+# Delete any blank rows (basically these will be the ones that are not part of the task or are the instruction, break, end of task rows)
+```
+```{r CorsiBlock: Tidy}
+CorsiBlockdata<-read.csv("ALL_CorsiBlock_UK.csv")
+cbdata <- dplyr::rename (.data = CorsiBlockdata, CB_trials_show.keys = V1) %>% 
+  dplyr::rename (CB_trials_response.keys = V2) %>% 
+  dplyr::rename (CB_trials_response.rt = V3) %>% 
+  dplyr::rename (CB_trials_correctclick = V4) %>% 
+  dplyr::rename (CB_trials_totalclick = V5) %>% 
+  dplyr::rename (ParticipantID = V7) %>% 
+  dplyr::rename (CB_trials_version = V6) %>% 
+  dplyr::rename (CB_trials_correctanswer = V13) %>% 
+  mutate (CB_trials_version = as.factor(CB_trials_version)) %>% 
+  mutate (CB_trials_response.keys = as.factor(CB_trials_response.keys)) %>% 
+  mutate (CB_trials_show.keys = as.factor(CB_trials_show.keys)) %>% 
+  mutate (CB_trials_accuracyscore = case_when (CB_trials_response.keys == CB_trials_correctanswer ~ 1, TRUE ~ 0))%>%
+  mutate (CB_trials_perclick_response.rt = CB_trials_response.rt/CB_trials_totalclick)%>% 
+  mutate (CB_trials_accuracy = recode_factor (CB_trials_accuracyscore, 
+                         `1` = "correct", 
+                         `0` = "incorrect"))%>%
+  mutate (CB_difficultylevel_number = recode_factor (CB_trials_show.keys, 
+                         `5_4` = "2", 
+                         `2_3` = "2",
+                         `4_6` = "2",
+                         `5_8` = "2",
+                         `8_6_6` = "3",
+                         `2_4_2` = "3",
+                         `1_7_6` = "3",
+                         `8_4_5` = "3",
+                         `8_9_5_6` = "4",
+                         `8_4_9_5` = "4",
+                         `6_4_4_3` = "4",
+                         `2_6_1_9` = "4",
+                         `5_7_6_6_7` = "5",
+                         `2_3_7_4_6` = "5",
+                         `2_4_1_1_5` = "5",
+                         `1_4_5_9_8` = "5",
+                         `9_2_2_8_2_8` = "6",
+                         `1_6_2_9_9_7` = "6",
+                         `6_7_7_8_1_1` = "6",
+                         `7_1_5_6_9_6` = "6",
+                         `2_4_3_8_2_2_4` = "7",
+                         `5_8_1_4_7_2_6` = "7",
+                         `4_9_2_2_3_1_7` = "7",
+                         `9_4_3_2_8_6_1` = "7",
+                         `2_3_2_3_3_6_2_6` = "8",
+                         `3_8_8_9_6_1_5_2` = "8",
+                         `5_3_2_9_1_3_5_8` = "8",
+                         `6_9_8_6_9_7_5_8` = "8",
+                         `4_4_7_5_7_5_6_1_6` = "9",
+                         `9_2_8_4_1_4_3_7_5` = "9",
+                         `8_3_9_7_1_5_4_1_3` = "9",
+                         `4_1_2_7_3_1_6_7_6` = "9"))%>%
+   mutate (CB_difficultylevel = recode_factor (CB_difficultylevel_number, 
+                         `2` = "two",
+                         `3` = "three",
+                         `4` = "four",
+                         `5` = "five",
+                         `6` = "six",
+                         `7` = "seven",
+                         `8` = "eight",
+                         `9` = "nine"))%>%
+   mutate(CB_trials_RTcorrect = case_when (CB_trials_accuracyscore == 1 ~ CB_trials_response.rt))%>%
+   mutate(CB_trials_RTcorrect_perclick = case_when (CB_trials_accuracyscore == 1 ~   CB_trials_response.rt/CB_trials_totalclick))
+```
+```{r CorsiBlock: Create file for analyses}
+TRIALScorsi <- dplyr::select(.data = cbdata, 
+                        ParticipantID, CB_trials_show.keys,CB_trials_response.keys, CB_trials_response.rt, CB_trials_perclick_response.rt, CB_trials_correctclick, CB_trials_totalclick, CB_trials_version, CB_trials_correctanswer, CB_trials_accuracyscore,CB_trials_accuracy, CB_difficultylevel, CB_difficultylevel_number,CB_trials_RTcorrect,CB_trials_RTcorrect_perclick)
+# Create a summary of the data so that it can be checked here and used to correct any other issues
+summary(TRIALScorsi)
+#Save the R data table that was created here as a TXT file. TXT was selected becuase it is readable in a variety of programms (excel, SPSS, etc.) and becuase CSV files created problems for the procedures here. The TXT file is tab delimited - making it easy to import.
+write.csv(TRIALScorsi, "TRIALS_CorsiBlock_UK.csv", row.names = FALSE, sep="\t")
+```
+`

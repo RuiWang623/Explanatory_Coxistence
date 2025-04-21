@@ -1,0 +1,2163 @@
+---
+title: 'Explanatory Coexistence - Mean Calculation: R Code for Wrangling PsychoPy Data'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+```{r Load Libraries}
+library(tidyverse) # For data wrangling
+library(dplyr) # For data wrangling
+library(car) # Needed to run Levene test
+library(lsr) # Navarro package for running psychology tests
+library(psych) # for key psychology stats
+library(readr)  # for read_csv()
+library(afex) # Used for running the ANOVAs
+library(effects) # Effects package, needed for the estimated means, includes lower/upper 95% confidence limits
+library(apaTables) # Creates APA tables for the results
+library (lme4) # Needed to run REML ANOVAs
+library (lmerTest) # Needed to run REML ANOVAs
+```
+
+```{r Matrix Import Data CN}
+Matrix <- read_csv("TRIALS_MRIB_CN.csv", 
+                       col_types = cols(MRIB_trials_key_resp.rt = col_number(),
+                                        MRIB_trials_RTcorrect = col_number(),
+                                        MRIB_trials_accuracyscore = col_number()),
+                       na = c("", " ", "NA"))
+Matrix  <- dplyr::rename (.data = Matrix , ResponseType = MRIB_trials_correctanswer) %>% 
+  dplyr::rename (TrialAccuracy = MRIB_trials_accuracy) %>% 
+  dplyr::rename (ACC = MRIB_trials_accuracyscore) %>% 
+  dplyr::rename (RT = MRIB_trials_key_resp.rt) %>% 
+  filter (RT != 0)%>%
+  dplyr::rename (Difficulty = MRIB_difficulty_level) %>% 
+  dplyr::rename (MD = MRIB_md_level) %>% 
+  dplyr::rename (ParticipantResponse = MRIB_trials_key_resp.keys) %>% 
+  dplyr::rename (RTcorrect = MRIB_trials_RTcorrect) %>% 
+  mutate (ParticipantResponse = as.factor(ParticipantResponse)) %>% 
+  mutate (ResponseType = as.factor(ResponseType)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTcorrect = log(RTcorrect,10))%>% # Compute Log (base 10) transformation of RTcorrect
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))
+```
+```{r Matrix Compute Participant Means CN}
+GetMean_ACC <- Matrix %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(MRIB_ACC = mean(ACC)) # Compute mean
+GetMean_RTc <- Matrix %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- Matrix %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- Matrix %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Level1 <- Matrix  %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(Difficulty == "level_1", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_ACC_Level1 = mean(ACC)) # Compute mean
+GetMean_RTc_Level1 <- Matrix  %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(Difficulty == "level_1", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_RTc_Level1 = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Level1 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(Difficulty == "level_1", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_Level1 = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Level1_1 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(Difficulty == "level_1", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_Level1_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Level2 <- Matrix  %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(Difficulty == "level_2", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_ACC_Level2 = mean(ACC)) # Compute mean
+GetMean_RTc_Level2 <- Matrix  %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(Difficulty == "level_2", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_RTc_Level2 = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Level2 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(Difficulty == "level_2", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_Level2 = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Level2_1 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(Difficulty == "level_2", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_Level2_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Level3 <- Matrix  %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(Difficulty == "level_3", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_ACC_Level3 = mean(ACC)) # Compute mean
+GetMean_RTc_Level3 <- Matrix  %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(Difficulty == "level_3", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_RTc_Level3 = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Level3 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(Difficulty == "level_3", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_Level3 = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Level3_1 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(Difficulty == "level_3", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_Level3_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_MD <- Matrix  %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(MD == "md", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_ACC_MD = mean(ACC)) # Compute mean
+GetMean_RTc_MD <- Matrix  %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(MD == "md", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_RTc_MD = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_MD <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(MD == "md", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_MD = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_MD_1 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(MD == "md", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_MD_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_PD <- Matrix  %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(MD == "pd", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_ACC_PD = mean(ACC)) # Compute mean
+GetMean_RTc_PD <- Matrix  %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(MD == "pd", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_RTc_PD = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_PD <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(MD == "pd", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_PD = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_PD_1 <- Matrix  %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(MD == "pd", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(MRIB_LogRTc_PD_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+
+# Combine data tables
+MRIBmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_RTc, GetMean_LogRTc, GetMean_ACC_Level1, GetMean_RTc_Level1 , GetMean_LogRTc_Level1, GetMean_ACC_Level2 , GetMean_RTc_Level2, GetMean_LogRTc_Level2, GetMean_ACC_Level3, GetMean_RTc_Level3, GetMean_LogRTc_Level3, GetMean_ACC_MD, GetMean_RTc_MD , GetMean_LogRTc_MD, GetMean_ACC_PD, GetMean_RTc_PD, GetMean_LogRTc_PD, GetMean_LogRTc_1, GetMean_LogRTc_Level1_1, GetMean_LogRTc_Level2_1, GetMean_LogRTc_Level3_1, GetMean_LogRTc_MD_1, GetMean_LogRTc_PD_1))
+arrange(MRIBmeans, ParticipantID) # Arrange rows by participant ID
+```
+```{r Matrix Compute Efficiencey & Interference CN}
+MRIBmeans <- mutate (MRIBmeans, MRIB_EFF = MRIB_ACC/MRIB_RTc) %>% # Compute efficiency score
+  mutate (MRIB_EFF_PD = MRIB_ACC_PD/MRIB_RTc_PD) %>% # Compute efficiency score
+  mutate (MRIB_EFF_MD = MRIB_ACC_MD/MRIB_RTc_MD) %>% # Compute efficiency score
+  mutate (MRIB_EFF_Level1 = MRIB_ACC_Level1/MRIB_RTc_Level1) %>%
+  mutate (MRIB_EFF_Level2 = MRIB_ACC_Level2/MRIB_RTc_Level2) %>%
+  mutate (MRIB_EFF_Level3 = MRIB_ACC_Level3/MRIB_RTc_Level3) 
+```
+```{r Matrix Save CSV file CN}
+write.csv(MRIBmeans, "MEANS_MRIB_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```
+
+
+```{r Stop Signal Import Data CN}
+StopSignal <- read_csv("TRIALS_StopSignal_CN.csv", 
+                       col_types = cols(SS_trials_key_resp.rt = col_number(),
+                                        SS_trials_RTcorrect = col_number(),
+                                        SS_trials_accuracyscore = col_number()),
+                       na = c("", " ", "NA"))
+# dplyr::rename some of the variables for consistency across PsychoPy tasks
+StopSignal <- dplyr::rename (.data = StopSignal, ResponseType = SS_trials_correctanswer) %>% 
+  dplyr::rename (TaskType = SS_trialtype) %>% 
+  mutate (ConsistencyType = TaskType) %>% 
+  dplyr::rename (TrialAccuracy = SS_trials_accuracy) %>% 
+  dplyr::rename (ACC = SS_trials_accuracyscore) %>% 
+  dplyr::rename (RT = SS_trials_key_resp.rt) %>% 
+# Here only system stop gap is used in analysis. This section needs further discussion.
+  dplyr::rename (StopGAP = SS_trials_gap_real) %>% 
+  dplyr::rename (ParticipantResponse = SS_trials_key_resp.keys) %>% 
+  dplyr::rename (RTcorrect = SS_trials_RTcorrect) %>% 
+  mutate (ParticipantResponse = as.factor(ParticipantResponse)) %>% 
+  mutate (ResponseType = as.factor(ResponseType)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (TaskType = as.factor(TaskType)) %>%
+  mutate (ConsistencyType = as.factor(ConsistencyType)) %>%
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))%>%
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTcorrect = log(RTcorrect,10)) %>% # Compute Log (base 10) transformation of RTcorrect
+  mutate (LogGAP = log(StopGAP,10))  %>% # Compute Log (base 10) transformation of StopGAP
+  mutate (LogGAP_1 = log(StopGAP+1,10))  %>%
+  mutate (RTcorrect = as.numeric(RTcorrect)) %>% 
+  mutate (StopGAP = as.numeric(StopGAP)) %>% 
+  mutate (LogRTcorrect = as.numeric(LogRTcorrect)) %>% 
+  mutate (LogGAP = as.numeric(LogGAP)) %>% 
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))%>%
+  mutate (RTc_combined = coalesce(RTcorrect, StopGAP)) %>%  # Combine RTcorrect (for Go and No-Go) to run later ANOVAs
+  mutate (LogRTc_combined = coalesce(LogRTcorrect, LogGAP))  # Combine RTcorrect (for Go and No-Go) to run later ANOVAs
+```
+```{r Stop Signal Compute Participant Means CN}
+GetMean_ACC <- StopSignal %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(SS_ACC = mean(ACC)) # Compute mean
+GetMean_RTc <- StopSignal %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(SS_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- StopSignal %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(SS_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- StopSignal %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(SS_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Go <- StopSignal %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(TaskType == "Go", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(SS_ACC_Go = mean(ACC)) # Compute mean
+GetData_RT_Go <- StopSignal %>% # Create new data table; note this variable is only computed for Stop Signal Task as needed to compute Stop Signal RT
+  drop_na(RT) %>% 
+  dplyr::filter(TaskType == "Go", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(SS_RTmean_Go = mean(RT), SS_RTmedian_Go = median(RT)) # Compute mean
+GetMean_RTc_Go <- StopSignal %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(TaskType == "Go", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(SS_RTc_Go = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Go <- StopSignal %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(TaskType == "Go", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(SS_LogRTc_Go = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Go_1 <- StopSignal %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(TaskType == "Go", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(SS_LogRTc_Go_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_NoGo <- StopSignal %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(TaskType == "No-Go", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(SS_ACC_NoGo = mean(ACC)) # Compute mean
+GetData_StopGap <- StopSignal %>% # Create new data table
+  drop_na(StopGAP) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(SS_meanGAP = mean(StopGAP), SS_medianGAP = median(StopGAP)) # Compute mean
+GetData_LogStopGap <- StopSignal %>% # Create new data table
+  drop_na(LogGAP) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(SS_LogGAP = mean(LogGAP)) # Compute mean
+GetMean_LogStopGap_1 <- StopSignal %>% # Create new data table
+  drop_na(LogGAP_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(SS_LogStopGap_1 = mean(LogGAP_1)) # Compute mean
+
+# Note do not computer RTcorrect for NoGo trials as if they are correct they do not respond (thus no response time)
+# Combine data tables
+SSmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_ACC_Go, GetMean_ACC_NoGo, GetMean_RTc, GetMean_RTc_Go, GetData_RT_Go, GetData_StopGap, GetMean_LogRTc, GetMean_LogRTc_Go_1, GetMean_LogRTc_1, GetMean_LogRTc_Go, GetData_LogStopGap,GetMean_LogStopGap_1))
+arrange(SSmeans, ParticipantID)  # Arrange rows by participant ID
+```
+```{r Stop Signal Compute Efficiencey & Interference CN}
+SSmeans <- mutate (SSmeans, SS_StopSignalRTmean = SS_RTmean_Go - SS_meanGAP) %>% # Computing Stop Signal RT (based on mean)
+  mutate(SS_StopSignalRTmedian = SS_ACC_Go - SS_medianGAP) %>% # Computing Stop Signal RT (based on median)
+  mutate(SS_EFF = SS_ACC / SS_RTc) %>% # Compute efficiency score
+  mutate(SS_EFF_Go = SS_ACC_Go / SS_RTc_Go) %>% # Compute efficiency score
+  mutate(SS_EFF_NoGo = SS_ACC_NoGo / SS_StopSignalRTmean) %>% # Compute efficiency score
+ 
+  mutate (SS_ACC_Interference = SS_ACC_Go - SS_ACC_NoGo) %>% # Compute interference score
+  mutate (SS_EFF_Interference = SS_EFF_Go - SS_EFF_NoGo) %>% # Compute interference score
+  mutate (SS_RTc_Interference = SS_RTc - SS_meanGAP) %>% # Compute interference score
+  mutate (SS_LogRTc_Interference = SS_LogRTc - SS_LogGAP) %>% # Compute interference score
+
+  # Reordering the columns for later
+  relocate (SS_ACC_Interference, .after = SS_ACC) %>% 
+  relocate (SS_EFF_Interference, .after = SS_EFF) %>%
+  relocate (SS_RTc_Interference, .after = SS_RTc) %>%
+  relocate (SS_LogRTc_Interference, .after = SS_LogRTc) 
+```
+```{r Stop Signal Save CSV file CN}
+write.csv(SSmeans, "MEANS_StopSignal_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```
+
+```{r Flanker Import Data CN}
+Flanker <- read_csv("TRIALS_Flanker_CN.csv", 
+                       col_types = cols(FT_trials_key_resp.rt = col_number(),
+                                        FT_trials_RTcorrect = col_number(),
+                                        FT_trials_accuracyscore = col_number()),
+                       na = c("", " ", "NA"))
+Flanker <- dplyr::rename (.data = Flanker, ResponseType = FT_trials_correctanswer) %>% 
+  dplyr::rename (ConsistencyType = FT_trials_consistency) %>% 
+  dplyr::rename (DetailedConsistencyType = FT_trials_type) %>% 
+  dplyr::rename (TrialAccuracy = FT_trials_accuracy) %>% 
+  dplyr::rename (ACC = FT_trials_accuracyscore) %>% 
+  dplyr::rename (RT = FT_trials_key_resp.rt) %>% 
+  filter (RT != 0)%>%
+  dplyr::rename (ParticipantResponse = FT_trials_key_resp.keys) %>% 
+  dplyr::rename (RTcorrect = FT_trials_RTcorrect) %>% 
+  mutate (ParticipantResponse = as.factor(ParticipantResponse)) %>% 
+  mutate (ResponseType = as.factor(ResponseType)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (ConsistencyType = as.factor(ConsistencyType)) %>%
+  mutate (DetailedConsistencyType = as.factor(DetailedConsistencyType)) %>%
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))%>%
+  mutate (LogRTcorrect = log(RTcorrect,10)) # Compute Log (base 10) transformation of RTcorrect
+```
+```{r Flanker Compute Participant Means CN}
+GetMean_ACC <- Flanker %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(FT_ACC = mean(ACC)) # Compute mean
+GetMean_RTc <- Flanker %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(FT_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- Flanker %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- Flanker %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Consistent <- Flanker %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_ACC_Consistent = mean(ACC)) # Compute mean
+GetMean_RTc_Consistent <- Flanker %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_RTc_Consistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent <- Flanker %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTc_Consistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent_1 <- Flanker %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTc_Consistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Inconsistent <- Flanker %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_ACC_Inconsistent = mean(ACC)) # Compute mean
+GetMean_RTc_Inconsistent <- Flanker %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_RTc_Inconsistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent <- Flanker %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTc_Inconsistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent_1 <- Flanker %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTc_Inconsistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_SimpleIncongruent <- Flanker %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(DetailedConsistencyType == "simple_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_ACC_SimpleIncongruent = mean(ACC)) # Compute mean
+GetMean_ACC_ComplexIncongruent <- Flanker %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(DetailedConsistencyType == "complex_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_ACC_ComplexIncongruent = mean(ACC)) # Compute mean
+GetMean_RTc_SimpleIncongruent <- Flanker %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedConsistencyType == "simple_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_RTc_SimpleIncongruent = mean(RTcorrect)) # Compute mean
+GetMean_RTc_ComplexIncongruent <- Flanker %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedConsistencyType == "complex_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_RTc_ComplexIncongruent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_SimpleIncongruent <- Flanker %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedConsistencyType == "simple_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTcRTc_SimpleIncongruent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_SimpleIncongruent_1 <- Flanker %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(DetailedConsistencyType == "simple_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTcRTc_SimpleIncongruent_1 = mean(LogRTcorrect_1)) # Compute mean
+GetMean_LogRTc_ComplexIncongruent <- Flanker %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedConsistencyType == "complex_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTcRTc_ComplexIncongruent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ComplexIncongruent_1 <- Flanker %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(DetailedConsistencyType == "complex_Inconsistent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FT_LogRTcRTc_ComplexIncongruent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+
+# Combine data tables
+FTmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_ACC_Consistent, GetMean_ACC_Inconsistent, GetMean_RTc, GetMean_RTc_Consistent, GetMean_RTc_Inconsistent, GetMean_LogRTc, GetMean_LogRTc_Consistent, GetMean_LogRTc_Inconsistent, GetMean_ACC_SimpleIncongruent, GetMean_ACC_ComplexIncongruent,GetMean_RTc_SimpleIncongruent, GetMean_RTc_ComplexIncongruent,GetMean_LogRTc_SimpleIncongruent, GetMean_LogRTc_ComplexIncongruent,GetMean_LogRTc_1, GetMean_LogRTc_Consistent_1, GetMean_LogRTc_Inconsistent_1, GetMean_LogRTc_SimpleIncongruent_1, GetMean_LogRTc_ComplexIncongruent_1))
+arrange(FTmeans, ParticipantID) # Arrange rows by participant ID
+```
+```{r Flanker Compute Efficiencey & Interference CN}
+FTmeans <- mutate (FTmeans, FT_EFF = FT_ACC/FT_RTc) %>% # Compute efficiency score
+  mutate (FT_EFF_Consistent = FT_ACC_Consistent/FT_RTc_Consistent) %>% # Compute efficiency score
+  mutate (FT_EFF_Inconsistent = FT_ACC_Inconsistent/FT_RTc_Inconsistent) %>% # Compute efficiency score
+  
+  mutate (FT_ACC_Interference = FT_ACC_Consistent - FT_ACC_Inconsistent) %>% # Compute Interference score
+  mutate (FT_EFF_Interference = FT_EFF_Consistent - FT_EFF_Inconsistent) %>% # Compute Interference score
+  mutate (FT_RTc_Interference = FT_RTc_Consistent - FT_RTc_Inconsistent) %>% # Compute Interference score
+  mutate (FT_LogRTc_Interference = FT_LogRTc_Consistent - FT_LogRTc_Inconsistent) %>% # Compute Interference score
+
+  # Reordering the columns for later
+  relocate (FT_ACC_Interference, .after = FT_ACC) %>% 
+  relocate (FT_EFF_Interference, .after = FT_EFF) %>%
+  relocate (FT_RTc_Interference, .after = FT_RTc) %>%
+  relocate (FT_LogRTc_Interference, .after = FT_LogRTc) 
+```
+```{r Flanker Save CSV file CN}
+write.csv(FTmeans, "MEANS_Flanker_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```
+
+```{r Figure Matching Import Data CN}
+FigureMatching <- read_csv("TRIALS_FigureMatching_CN.csv", 
+                       col_types = cols(FM_trials_key_resp.rt = col_number(),
+                                        FM_trials_RTcorrect = col_number(),
+                                        FM_trials_accuracyscore = col_number()),
+                       na = c("", " ", "NA"))
+FigureMatching <- dplyr::rename (.data = FigureMatching, ResponseType = FM_trials_correctanswer) %>% 
+  dplyr::rename (TaskType = FM_trials_tasktype) %>% 
+  dplyr::rename (ConsistencyType = FM_trials_consistency) %>% 
+  dplyr::rename (BlockType = FM_trials_blocktype) %>% 
+  dplyr::rename (SwitchType = FM_trials_switchtype) %>% 
+  dplyr::rename (TrialAccuracy = FM_trials_accuracy) %>% 
+  dplyr::rename (ACC = FM_trials_accuracyscore) %>% 
+  dplyr::rename (RT = FM_trials_key_resp.rt) %>%
+  filter (RT != 0)%>%
+  dplyr::rename (ParticipantResponse = FM_trials_key_resp.keys) %>% 
+  dplyr::rename (RTcorrect = FM_trials_RTcorrect) %>% 
+  mutate (ParticipantResponse = as.factor(ParticipantResponse)) %>% 
+  mutate (ResponseType = as.factor(ResponseType)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (TaskType = as.factor(TaskType)) %>%
+  mutate (ConsistencyType = as.factor(ConsistencyType)) %>%
+  mutate (BlockType = as.factor(BlockType)) %>%
+  mutate (SwitchType = as.factor(SwitchType)) %>%
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTcorrect = log(RTcorrect,10))%>% # Compute Log (base 10) transformation of RTcorrect
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))
+
+```
+```{r Figure Matching Compute Participant Means CN}
+GetMean_ACC <- FigureMatching %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(FM_ACC = mean(ACC)) # Compute mean
+GetMean_RTc <- FigureMatching %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- FigureMatching %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- FigureMatching %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Consistent <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_Consistent = mean(ACC)) # Compute mean
+GetMean_RTc_Consistent <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_Consistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Consistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Consistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Inconsistent <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_Inconsistent = mean(ACC)) # Compute mean
+GetMean_RTc_Inconsistent <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_Inconsistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Inconsistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Inconsistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Pure <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_Pure = mean(ACC)) # Compute mean
+GetMean_RTc_Pure <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_Pure = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Pure <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Pure = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Pure_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Pure_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Mixed <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_Mixed = mean(ACC)) # Compute mean
+GetMean_RTc_Mixed <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_Mixed = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Mixed <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Mixed = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Mixed_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Mixed_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Repeat <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_Repeat = mean(ACC)) # Compute mean
+GetMean_RTc_Repeat <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_Repeat = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Repeat <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Repeat = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Repeat_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Repeat_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Switch <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_Switch = mean(ACC)) # Compute mean
+GetMean_RTc_Switch <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_Switch = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Switch <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Switch = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Switch_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_Switch_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentPure <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_ConsistentPure = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentPure <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_ConsistentPure = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentPure <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentPure = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentPure_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentPure_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentPure <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_InconsistentPure = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentPure <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_InconsistentPure = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentPure <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentPure = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentPure_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "pure", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentPure_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_ConsistentMixed <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_ConsistentMixed = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentMixed <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_ConsistentMixed = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentMixed <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentMixed = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentMixed_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentMixed_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentMixed <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_InconsistentMixed = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentMixed <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_InconsistentMixed = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentMixed <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentMixed = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentMixed_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & BlockType == "mixed", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentMixed_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_ConsistentRepeat <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_ConsistentRepeat = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentRepeat <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_ConsistentRepeat = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentRepeat <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentRepeat = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentRepeat_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentRepeat_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_InconsistentRepeat <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_InconsistentRepeat = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentRepeat <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_InconsistentRepeat = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentRepeat <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentRepeat = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentRepeat_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "repeat", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentRepeat_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentSwitch <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_ConsistentSwitch = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentSwitch <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_ConsistentSwitch = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentSwitch <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentSwitch = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentSwitch_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_ConsistentSwitch_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentSwitch <- FigureMatching %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_ACC_InconsistentSwitch = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentSwitch <- FigureMatching %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_RTc_InconsistentSwitch = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentSwitch <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentSwitch = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentSwitch_1 <- FigureMatching %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & SwitchType == "switch", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(FM_LogRTc_InconsistentSwitch_1 = mean(LogRTcorrect_1)) # Compute mean
+
+# Combine data tables
+FMmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_ACC_Consistent, GetMean_ACC_Inconsistent, GetMean_ACC_Pure, GetMean_ACC_ConsistentPure, GetMean_ACC_InconsistentPure, GetMean_ACC_Mixed, GetMean_ACC_ConsistentMixed, GetMean_ACC_InconsistentMixed, GetMean_ACC_Repeat, GetMean_ACC_ConsistentRepeat, GetMean_ACC_InconsistentRepeat, GetMean_ACC_Switch, GetMean_ACC_ConsistentSwitch, GetMean_ACC_InconsistentSwitch, GetMean_RTc, GetMean_RTc_Consistent, GetMean_RTc_Inconsistent, GetMean_RTc_Pure, GetMean_RTc_ConsistentPure, GetMean_RTc_InconsistentPure, GetMean_RTc_Mixed, GetMean_RTc_ConsistentMixed, GetMean_RTc_InconsistentMixed, GetMean_RTc_Repeat, GetMean_RTc_ConsistentRepeat, GetMean_RTc_InconsistentRepeat, GetMean_RTc_Switch, GetMean_RTc_ConsistentSwitch, GetMean_RTc_InconsistentSwitch, GetMean_LogRTc, GetMean_LogRTc_Consistent, GetMean_LogRTc_Inconsistent, GetMean_LogRTc_Pure, GetMean_LogRTc_ConsistentPure, GetMean_LogRTc_InconsistentPure, GetMean_LogRTc_Mixed, GetMean_LogRTc_ConsistentMixed, GetMean_LogRTc_InconsistentMixed, GetMean_LogRTc_Repeat, GetMean_LogRTc_ConsistentRepeat, GetMean_LogRTc_InconsistentRepeat, GetMean_LogRTc_Switch, GetMean_LogRTc_ConsistentSwitch, GetMean_LogRTc_InconsistentSwitch,GetMean_LogRTc_1, GetMean_LogRTc_Consistent_1, GetMean_LogRTc_Inconsistent_1, GetMean_LogRTc_Pure_1, GetMean_LogRTc_ConsistentPure_1, GetMean_LogRTc_InconsistentPure_1, GetMean_LogRTc_Mixed_1, GetMean_LogRTc_ConsistentMixed_1, GetMean_LogRTc_InconsistentMixed_1, GetMean_LogRTc_Repeat_1, GetMean_LogRTc_ConsistentRepeat_1, GetMean_LogRTc_InconsistentRepeat_1, GetMean_LogRTc_Switch_1, GetMean_LogRTc_ConsistentSwitch_1, GetMean_LogRTc_InconsistentSwitch_1))
+arrange(FMmeans, ParticipantID) # Arrange rows by participant ID
+```
+```{r Figure Matching Compute Efficiencey & Interference CN}
+FMmeans <- mutate (FMmeans, FM_EFF = FM_ACC/FM_RTc) %>% # Compute efficiency score
+  mutate (FM_EFF_Consistent = FM_ACC_Consistent/FM_RTc_Consistent) %>% # Compute efficiency score
+  mutate (FM_EFF_Inconsistent = FM_ACC_Inconsistent/FM_RTc_Inconsistent) %>% # Compute efficiency score
+  
+  mutate (FM_EFF_Pure = FM_ACC_Pure/FM_RTc_Pure) %>%# Compute efficiency score
+  mutate (FM_EFF_ConsistentPure = FM_ACC_ConsistentPure/FM_RTc_ConsistentPure) %>% # Compute efficiency score
+  mutate (FM_EFF_InconsistentPure = FM_ACC_InconsistentPure/FM_RTc_InconsistentPure) %>% # Compute efficiency score
+  
+  mutate (FM_EFF_Mixed = FM_ACC_Mixed/FM_RTc_Mixed) %>%# Compute efficiency score
+  mutate (FM_EFF_ConsistentMixed = FM_ACC_ConsistentMixed/FM_RTc_ConsistentMixed) %>% # Compute efficiency score
+  mutate (FM_EFF_InconsistentMixed = FM_ACC_InconsistentMixed/FM_RTc_InconsistentMixed) %>% # Compute efficiency score
+  
+  mutate (FM_EFF_Repeat = FM_ACC_Repeat/FM_RTc_Repeat) %>% # Compute efficiency score
+  mutate (FM_EFF_ConsistentRepeat = FM_ACC_ConsistentRepeat/FM_RTc_ConsistentRepeat) %>% # Compute efficiency score
+  mutate (FM_EFF_InconsistentRepeat = FM_ACC_InconsistentRepeat/FM_RTc_InconsistentRepeat) %>% # Compute efficiency score
+  
+  mutate (FM_EFF_Switch = FM_ACC_Switch/FM_RTc_Switch) %>% # Compute efficiency score
+  mutate (FM_EFF_ConsistentSwitch = FM_ACC_ConsistentSwitch/FM_RTc_ConsistentSwitch) %>% # Compute efficiency score
+  mutate (FM_EFF_InconsistentSwitch = FM_ACC_InconsistentSwitch/FM_RTc_InconsistentSwitch) %>% # Compute efficiency score
+  
+  mutate (FM_ACC_Interference = FM_ACC_Consistent - FM_ACC_Inconsistent) %>% # Compute interference score
+  mutate (FM_EFF_Interference = FM_EFF_Consistent - FM_EFF_Inconsistent) %>% # Compute interference score
+  mutate (FM_RTc_Interference = FM_RTc_Consistent - FM_RTc_Inconsistent) %>% # Compute interference score
+  mutate (FM_LogRTc_Interference = FM_LogRTc_Consistent - FM_LogRTc_Inconsistent) %>% # Compute interference score
+  
+  mutate (FM_ACC_InterferencePure = FM_ACC_ConsistentPure - FM_ACC_InconsistentPure) %>% # Compute interference score
+  mutate (FM_EFF_InterferencePure = FM_EFF_ConsistentPure - FM_EFF_InconsistentPure) %>% # Compute interference score
+  mutate (FM_RTc_InterferencePure = FM_RTc_ConsistentPure - FM_RTc_InconsistentPure) %>% # Compute interference score
+  mutate (FM_LogRTc_InterferencePure = FM_LogRTc_ConsistentPure - FM_LogRTc_InconsistentPure) %>% # Compute interference score
+  
+  mutate (FM_ACC_InterferenceMixed = FM_ACC_ConsistentMixed - FM_ACC_InconsistentMixed) %>% # Compute interference score
+  mutate (FM_EFF_InterferenceMixed = FM_EFF_ConsistentMixed - FM_EFF_InconsistentMixed) %>% # Compute interference score
+  mutate (FM_RTc_InterferenceMixed = FM_RTc_ConsistentMixed - FM_RTc_InconsistentMixed) %>% # Compute interference score
+  mutate (FM_LogRTc_InterferenceMixed = FM_LogRTc_ConsistentMixed - FM_LogRTc_InconsistentMixed) %>% # Compute interference score
+  
+  mutate (FM_ACC_InterferenceRepeat = FM_ACC_ConsistentRepeat - FM_ACC_InconsistentRepeat) %>% # Compute interference score
+  mutate (FM_EFF_InterferenceRepeat = FM_EFF_ConsistentRepeat - FM_EFF_InconsistentRepeat) %>% # Compute interference score
+  mutate (FM_RTc_InterferenceRepeat = FM_RTc_ConsistentRepeat - FM_RTc_InconsistentRepeat) %>% # Compute interference score
+  mutate (FM_LogRTc_InterferenceRepeat = FM_LogRTc_ConsistentRepeat - FM_LogRTc_InconsistentRepeat) %>% # Compute interference score
+  
+  mutate (FM_ACC_InterferenceSwitch = FM_ACC_ConsistentSwitch - FM_ACC_InconsistentSwitch) %>% # Compute interference score
+  mutate (FM_EFF_InterferenceSwitch = FM_EFF_ConsistentSwitch - FM_EFF_InconsistentSwitch) %>% # Compute interference score
+  mutate (FM_RTc_InterferenceSwitch = FM_RTc_ConsistentSwitch - FM_RTc_InconsistentSwitch) %>% # Compute interference score
+  mutate (FM_LogRTc_InterferenceSwitch = FM_LogRTc_ConsistentSwitch - FM_LogRTc_InconsistentSwitch) %>% # Compute interference score
+
+  # Reordering the columns for later
+  relocate (FM_ACC_Interference, .after = FM_ACC) %>% 
+  relocate (FM_EFF_Interference, .after = FM_EFF) %>%
+  relocate (FM_RTc_Interference, .after = FM_RTc) %>% 
+  relocate (FM_LogRTc_Interference, .after = FM_LogRTc) %>% 
+  
+  relocate (FM_ACC_InterferencePure, .after = FM_ACC_Pure) %>% 
+  relocate (FM_EFF_InterferencePure, .after = FM_EFF_Pure) %>%
+  relocate (FM_RTc_InterferencePure, .after = FM_RTc_Pure) %>% 
+  relocate (FM_LogRTc_InterferencePure, .after = FM_LogRTc_Pure) %>% 
+  
+  relocate (FM_ACC_InterferenceMixed, .after = FM_ACC_Mixed) %>% 
+  relocate (FM_EFF_InterferenceMixed, .after = FM_EFF_Mixed) %>%
+  relocate (FM_RTc_InterferenceMixed, .after = FM_RTc_Mixed) %>% 
+  relocate (FM_LogRTc_InterferenceMixed, .after = FM_LogRTc_Mixed) %>% 
+  
+  relocate (FM_ACC_InterferenceRepeat, .after = FM_ACC_Repeat) %>% 
+  relocate (FM_EFF_InterferenceRepeat, .after = FM_EFF_Repeat) %>%
+  relocate (FM_RTc_InterferenceRepeat, .after = FM_RTc_Repeat) %>% 
+  relocate (FM_LogRTc_InterferenceRepeat, .after = FM_LogRTc_Repeat) %>% 
+  
+  relocate (FM_ACC_InterferenceSwitch, .after = FM_ACC_Switch) %>% 
+  relocate (FM_EFF_InterferenceSwitch, .after = FM_EFF_Switch) %>%
+  relocate (FM_RTc_InterferenceSwitch, .after = FM_RTc_Switch) %>% 
+  relocate (FM_LogRTc_InterferenceSwitch, .after = FM_LogRTc_Switch)  
+```
+```{r Figure Matching Save CSV file CN}
+write.csv(FMmeans, "MEANS_FigureMatching_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```
+
+```{r Corsi Import Data CN}
+Corsi <- read_csv("TRIALS_CorsiBlock_CN.csv")
+Corsi <- dplyr::rename (.data = Corsi, Version = CB_trials_version) %>%
+  dplyr::rename (Difficulty = CB_difficultylevel) %>% 
+  dplyr::rename (DifficultyNumber = CB_difficultylevel_number) %>% 
+  dplyr::rename (TrialAccuracy = CB_trials_accuracy) %>% 
+  dplyr::rename (ACC = CB_trials_accuracyscore) %>% 
+  dplyr::rename (Totalclick = CB_trials_totalclick) %>% 
+  dplyr::rename (Correctclick = CB_trials_correctclick) %>% 
+  dplyr::rename (RT = CB_trials_response.rt) %>% 
+  filter (RT != 0)%>%
+  dplyr::rename (RTperC = CB_trials_perclick_response.rt) %>% 
+  dplyr::rename (RTperCcorrect = CB_trials_RTcorrect_perclick) %>% 
+  dplyr::rename (RTcorrect = CB_trials_RTcorrect) %>% 
+  mutate (DifficultyNumber = as.factor(DifficultyNumber)) %>% 
+  mutate (Version = as.factor(Version)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (Difficulty = as.factor(Difficulty)) %>%
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTperC = log(RTperC,10)) %>% 
+  mutate (LogRTperCcorrect = log(RTperCcorrect,10)) %>% 
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))%>%
+  mutate (LogRTcorrect = log(RTcorrect,10)) # Compute Log (base 10) transformation of RTcorrect
+
+ForwardCorsi <- Corsi %>% # Create new data table
+  dplyr::filter(Version == "forward", .preserve = FALSE) 
+
+BackwardCorsi <- Corsi %>% # Create new data table
+  dplyr::filter(Version == "backward", .preserve = FALSE) 
+```
+```{r Corsi Compute Participant Means CN}
+GetMean_ACC <- Corsi %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(CB_ACC = mean(ACC)) # Compute mean
+GetMean_RTc <- Corsi %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- Corsi %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- Corsi %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+GetMean_LogRTperC <- Corsi %>% # Create new data table
+  drop_na(LogRTperC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTperC = mean(LogRTperC)) # Compute mean
+GetMean_RTperCcorrect <- Corsi %>% # Create new data table
+  drop_na(RTperCcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_RTperCcorrect = mean(RTperCcorrect)) # Compute mean
+
+GetMean_ACC_forward <- Corsi %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(CB_ACC_forward = mean(ACC)) # Compute mean
+GetMean_RTc_forward <- Corsi %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_RTc_forward = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_forward <- Corsi %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTc_forward = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1_forward <- Corsi %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTc_1_forward = mean(LogRTcorrect_1)) # Compute mean
+GetMean_LogRTc_forward <- Corsi %>% # Create new data table
+  drop_na(LogRTperC) %>% 
+  dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTperC_forward = mean(LogRTperC)) # Compute mean
+GetMean_RTperCcorrect_forward <- Corsi %>% # Create new data table
+  drop_na(RTperCcorrect) %>% 
+  dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_RTperCcorrect_forward = mean(RTperCcorrect)) # Compute mean
+
+GetMean_ACC_backward <- Corsi %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(CB_ACC_backward = mean(ACC)) # Compute mean
+GetMean_RTc_backward <- Corsi %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_RTc_backward = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_backward <- Corsi %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTc_backward = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1_backward <- Corsi %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTc_1_backward = mean(LogRTcorrect_1)) # Compute mean
+GetMean_LogRTperC_backward <- Corsi %>% # Create new data table
+  drop_na(LogRTperC) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_LogRTperC_back = mean(LogRTperC)) # Compute mean
+GetMean_RTperCcorrect_backward <- Corsi %>% # Create new data table
+  drop_na(RTperCcorrect) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_RTperCcorrect_back = mean(RTperCcorrect)) # Compute mean
+
+GetMean_Totalclick <- Corsi %>% # Create new data table
+  drop_na(Totalclick) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_Totalclick = mean(Totalclick)) # Compute mean
+GetMean_Correctclick <- Corsi %>% # Create new data table
+  drop_na(Correctclick) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_Correctclick = mean(Correctclick)) # Compute mean
+
+GetMean_Totalclick_forward <- Corsi %>% # Create new data table
+  drop_na(Totalclick) %>% 
+  dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_Totalclick_forward = mean(Totalclick)) # Compute mean
+GetMean_Correctclick_forward <- Corsi %>% # Create new data table
+  drop_na(Correctclick) %>% 
+   dplyr::filter(Version == "forward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_Correctclick_forward = mean(Correctclick)) # Compute mean
+
+GetMean_Totalclick_backward <- Corsi %>% # Create new data table
+  drop_na(Totalclick) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_Totalclick_backward = mean(Totalclick)) # Compute mean
+GetMean_Correctclick_backward <- Corsi %>% # Create new data table
+  drop_na(Correctclick) %>% 
+  dplyr::filter(Version == "backward", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(CB_Correctclick_backward = mean(Correctclick)) # Compute mean
+
+
+CBmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_RTc , GetMean_LogRTc, GetMean_LogRTperC, GetMean_RTperCcorrect, GetMean_ACC_forward, GetMean_RTc_forward, GetMean_LogRTc_1, GetMean_LogRTc_forward, GetMean_LogRTc_forward, GetMean_LogRTc_1_forward,GetMean_RTperCcorrect_forward, GetMean_ACC_backward, GetMean_RTc_backward, GetMean_LogRTc_backward , GetMean_LogRTc_backward, GetMean_LogRTc_1_backward, GetMean_RTperCcorrect_backward, GetMean_Totalclick, GetMean_Correctclick , GetMean_Totalclick_forward, GetMean_Correctclick_forward, GetMean_Totalclick_backward, GetMean_Correctclick_backward))
+arrange(CBmeans, ParticipantID) # Arrange rows by participant ID
+```
+```{r Corsi Compute Efficiencey CN}
+CBmeans <- mutate (CBmeans, CB_EFF = CB_ACC/CB_RTc) %>% # Compute efficiency score
+  mutate (CB_EFF_forward = CB_ACC_forward/CB_RTc_forward) %>% # Compute efficiency score
+  mutate (CB_EFF_backward = CB_ACC_backward/CB_RTc_backward) # Compute efficiency score
+```
+```{r Corsi Write csv CN}
+write.csv(CBmeans, "MEANS_Corsi_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```
+
+```{r Animism Import Data CN}
+Animism <- read_csv("TRIALS_Animism_CN.csv", 
+                       col_types = cols(AT_trials_key_resp.rt = col_number(),
+                                        AT_trials_RTcorrect = col_number(),
+                                        AT_trials_accuracyscore = col_number()),
+                       na = c("", " ", "NA"))
+Animism <- dplyr::rename (.data = Animism, ResponseType = AT_trials_correctanswer) %>%
+  dplyr::rename (ConsistencyType = AT_trials_consistency) %>% 
+  dplyr::rename (LivingType = AT_trials_livingtype) %>% 
+  dplyr::rename (MovingType = AT_trials_movingtype) %>% 
+  dplyr::rename (TrialAccuracy = AT_trials_accuracy) %>% 
+  dplyr::rename (ACC = AT_trials_accuracyscore) %>% 
+  dplyr::rename (RT = AT_trials_key_resp.rt) %>% 
+  filter (RT != 0)%>%
+  dplyr::rename (ParticipantResponse = AT_trials_key_resp.keys) %>% 
+  dplyr::rename (RTcorrect = AT_trials_RTcorrect) %>% 
+  mutate (ParticipantResponse = as.factor(ParticipantResponse)) %>% 
+  mutate (ResponseType = as.factor(ResponseType)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (ConsistencyType = as.factor(ConsistencyType)) %>%
+  mutate (LivingType = as.factor(LivingType)) %>%
+  mutate (MovingType = as.factor(MovingType)) %>%
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTcorrect = log(RTcorrect,10))%>% # Compute Log (base 10) transformation of RTcorrect
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10)) # Compute Log (base 10) transformation of RTcorrect
+```
+```{r Animism Compute Participant Means CN}
+GetMean_ACC <- Animism %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(AT_ACC = mean(ACC)) # Compute mean
+GetMean_RT <- Animism %>% # Create new data table
+  drop_na(RT) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(AT_RT = mean(RT)) # Compute mean
+GetMean_RTc <- Animism %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- Animism %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- Animism %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Consistent <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_Consistent = mean(ACC)) # Compute mean
+GetMean_RTc_Consistent <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_Consistent = mean(RTcorrect)) # Compute mean
+GetMean_RT_Consistent <- Animism %>% # Create new data table 
+  drop_na(RT) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RT_Consistent = mean(RT)) # Compute mean
+GetMean_LogRTc_Consistent <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Consistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Consistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Inconsistent <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_Inconsistent = mean(ACC)) # Compute mean
+GetMean_RTc_Inconsistent <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_Inconsistent = mean(RTcorrect)) # Compute mean
+GetMean_RT_Inconsistent <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RT_Inconsistent = mean(RT)) # Compute mean
+GetMean_LogRTc_Inconsistent <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Inconsistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Inconsistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Living <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_Living = mean(ACC)) # Compute mean
+GetMean_RTc_Living <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_Living = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Living <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Living = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Living_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Living_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_NonLiving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_NonLiving = mean(ACC)) # Compute mean
+GetMean_RTc_NonLiving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_NonLiving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_NonLiving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_NonLiving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_NonLiving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_NonLiving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Moving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_Moving = mean(ACC)) # Compute mean
+GetMean_RTc_Moving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_Moving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Moving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Moving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Moving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_Moving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_NonMoving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_NonMoving = mean(ACC)) # Compute mean
+GetMean_RTc_NonMoving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_NonMoving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_NonMoving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_NonMoving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_NonMoving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_NonMoving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentLiving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_ConsistentLiving = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentLiving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_ConsistentLiving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentLiving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentLiving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentLiving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentLiving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentLiving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_InconsistentLiving = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentLiving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_InconsistentLiving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentLiving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentLiving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentLiving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentLiving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentNonLiving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_ConsistentNonLiving = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentNonLiving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_ConsistentNonLiving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentNonLiving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentNonLiving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentNonLiving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentNonLiving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentNonLiving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_InconsistentNonLiving = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentNonLiving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_InconsistentNonLiving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentNonLiving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentNonLiving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentNonLiving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & LivingType == "non-living", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentNonLiving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentMoving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_ConsistentMoving = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentMoving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_ConsistentMoving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentMoving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentMoving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentMoving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentMoving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentMoving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_InconsistentMoving = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentMoving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_InconsistentMoving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentMoving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentMoving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentMoving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentMoving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentNonMoving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_ConsistentNonMoving = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentNonMoving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_ConsistentNonMoving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentNonMoving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentNonMoving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentNonMoving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_ConsistentNonMoving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentNonMoving <- Animism %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_ACC_InconsistentNonMoving = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentNonMoving <- Animism %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_RTc_InconsistentNonMoving = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentNonMoving <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentNonMoving = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentNonMoving_1 <- Animism %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & MovingType == "non-moving", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(AT_LogRTc_InconsistentNonMoving_1 = mean(LogRTcorrect_1)) # Compute mean
+
+# Combine data tables
+ATmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_ACC_Consistent, GetMean_ACC_Inconsistent, GetMean_ACC_Living, GetMean_ACC_ConsistentLiving, GetMean_ACC_InconsistentLiving, GetMean_ACC_NonLiving,  GetMean_ACC_ConsistentNonLiving, GetMean_ACC_InconsistentNonLiving, GetMean_ACC_Moving, GetMean_ACC_ConsistentMoving, GetMean_ACC_InconsistentMoving, GetMean_ACC_NonMoving, GetMean_ACC_ConsistentNonMoving, GetMean_ACC_InconsistentNonMoving, GetMean_RT, GetMean_RT_Consistent, GetMean_RT_Inconsistent, GetMean_RTc, GetMean_RTc_Consistent, GetMean_RTc_Inconsistent, GetMean_RTc_Living, GetMean_RTc_ConsistentLiving, GetMean_RTc_InconsistentLiving, GetMean_RTc_NonLiving, GetMean_RTc_ConsistentNonLiving, GetMean_RTc_InconsistentNonLiving, GetMean_RTc_Moving, GetMean_RTc_ConsistentMoving, GetMean_RTc_InconsistentMoving, GetMean_RTc_NonMoving, GetMean_RTc_ConsistentNonMoving, GetMean_RTc_InconsistentNonMoving, GetMean_LogRTc, GetMean_LogRTc_Consistent, GetMean_LogRTc_Inconsistent, GetMean_LogRTc_Living, GetMean_LogRTc_ConsistentLiving, GetMean_LogRTc_InconsistentLiving, GetMean_LogRTc_NonLiving, GetMean_LogRTc_ConsistentNonLiving, GetMean_LogRTc_InconsistentNonLiving, GetMean_LogRTc_Moving, GetMean_LogRTc_ConsistentMoving, GetMean_LogRTc_InconsistentMoving, GetMean_LogRTc_NonMoving, GetMean_LogRTc_ConsistentNonMoving, GetMean_LogRTc_InconsistentNonMoving, GetMean_LogRTc_1, GetMean_LogRTc_Consistent_1, GetMean_LogRTc_Inconsistent_1, GetMean_LogRTc_Living_1, GetMean_LogRTc_ConsistentLiving_1, GetMean_LogRTc_InconsistentLiving_1, GetMean_LogRTc_NonLiving_1, GetMean_LogRTc_ConsistentNonLiving_1, GetMean_LogRTc_InconsistentNonLiving_1, GetMean_LogRTc_Moving_1, GetMean_LogRTc_ConsistentMoving_1, GetMean_LogRTc_InconsistentMoving_1, GetMean_LogRTc_NonMoving_1, GetMean_LogRTc_ConsistentNonMoving_1, GetMean_LogRTc_InconsistentNonMoving_1))
+arrange(ATmeans, ParticipantID) # Arrange rows by participant ID
+```
+```{r Animism Compute Efficiencey & Interference CN}
+ATmeans <- mutate (ATmeans, AT_EFF = AT_ACC/AT_RTc) %>% # Compute efficiency score
+  mutate (AT_EFF_Consistent = AT_ACC_Consistent/AT_RTc_Consistent) %>% # Compute efficiency score
+  mutate (AT_EFF_Inconsistent = AT_ACC_Inconsistent/AT_RTc_Inconsistent) %>% # Compute efficiency score
+  
+  mutate (AT_EFF_Living = AT_ACC_Living/AT_RTc_Living) %>% # Compute efficiency score
+  mutate (AT_EFF_ConsistentLiving = AT_ACC_ConsistentLiving/AT_RTc_ConsistentLiving) %>% # Compute efficiency score
+  mutate (AT_EFF_InconsistentLiving = AT_ACC_InconsistentLiving/AT_RTc_InconsistentNonLiving) %>% # Compute efficiency score
+  
+  mutate (AT_EFF_NonLiving = AT_ACC_NonLiving/AT_RTc_NonLiving) %>% # Compute efficiency score
+  mutate (AT_EFF_ConsistentNonLiving = AT_ACC_ConsistentNonLiving/AT_RTc_ConsistentNonLiving) %>% # Compute efficiency score
+  mutate (AT_EFF_InconsistentNonLiving = AT_ACC_InconsistentNonLiving/AT_RTc_InconsistentNonLiving) %>% # Compute efficiency score
+  
+  mutate (AT_EFF_Moving = AT_ACC_NonMoving/AT_RTc_Moving) %>% # Compute efficiency score
+  mutate (AT_EFF_ConsistentMoving = AT_ACC_ConsistentMoving/AT_RTc_ConsistentMoving) %>% # Compute efficiency score
+  mutate (AT_EFF_InconsistentMoving = AT_ACC_InconsistentMoving/AT_RTc_InconsistentMoving) %>% # Compute efficiency score
+  
+  mutate (AT_EFF_NonMoving = AT_ACC_NonMoving/AT_RTc_NonMoving) %>% # Compute efficiency score
+  mutate (AT_EFF_ConsistentNonMoving = AT_ACC_ConsistentNonMoving/AT_RTc_ConsistentNonMoving) %>% # Compute efficiency score
+  mutate (AT_EFF_InconsistentNonMoving = AT_ACC_InconsistentNonMoving/AT_RTc_InconsistentNonMoving) %>% # Compute efficiency score
+  
+  mutate (AT_ACC_Interference = AT_ACC_Consistent - AT_ACC_Inconsistent) %>% # Compute Interference score
+  mutate (AT_EFF_Interference = AT_EFF_Consistent - AT_EFF_Inconsistent) %>% # Compute Interference score
+  mutate (AT_RTc_Interference = AT_RTc_Consistent - AT_RTc_Inconsistent) %>% # Compute Interference score
+  mutate (AT_LogRTc_Interference = AT_LogRTc_Consistent - AT_LogRTc_Inconsistent) %>% # Compute Interference score
+  
+  mutate (AT_ACC_InterferenceLiving = AT_ACC_ConsistentLiving - AT_ACC_InconsistentLiving) %>% # Compute interference score
+  mutate (AT_EFF_InterferenceLiving = AT_EFF_ConsistentLiving - AT_EFF_InconsistentLiving) %>% # Compute interference score
+  mutate (AT_RTc_InterferenceLiving = AT_RTc_ConsistentLiving - AT_RTc_InconsistentLiving) %>% # Compute interference score
+  mutate (AT_LogRTc_InterferenceLiving = AT_LogRTc_ConsistentLiving - AT_LogRTc_InconsistentLiving) %>% # Compute interference score
+  
+  mutate (AT_ACC_InterferenceNonLiving = AT_ACC_ConsistentNonLiving - AT_ACC_InconsistentNonLiving) %>% # Compute interference score
+  mutate (AT_EFF_InterferenceNonLiving = AT_EFF_ConsistentNonLiving - AT_EFF_InconsistentNonLiving) %>% # Compute interference score
+  mutate (AT_RTc_InterferenceNonLiving = AT_RTc_ConsistentNonLiving - AT_RTc_InconsistentNonLiving) %>% # Compute interference score
+  mutate (AT_LogRTc_InterferenceNonLiving = AT_LogRTc_ConsistentNonLiving - AT_LogRTc_InconsistentNonLiving) %>% # Compute interference score
+  
+  mutate (AT_ACC_InterferenceMoving = AT_ACC_ConsistentMoving - AT_ACC_InconsistentMoving) %>% # Compute interference score
+  mutate (AT_EFF_InterferenceMoving = AT_EFF_ConsistentMoving - AT_EFF_InconsistentMoving) %>% # Compute interference score
+  mutate (AT_RTc_InterferenceMoving = AT_RTc_ConsistentMoving - AT_RTc_InconsistentMoving) %>% # Compute interference score
+  mutate (AT_LogRTc_InterferenceMoving = AT_LogRTc_ConsistentMoving - AT_LogRTc_InconsistentMoving) %>% # Compute interference score
+  
+  mutate (AT_ACC_InterferenceNonMoving = AT_ACC_ConsistentNonMoving - AT_ACC_InconsistentNonMoving) %>% # Compute interference score
+  mutate (AT_EFF_InterferenceNonMoving = AT_EFF_ConsistentNonMoving - AT_EFF_InconsistentNonMoving) %>% # Compute interference score
+  mutate (AT_RTc_InterferenceNonMoving = AT_RTc_ConsistentNonMoving - AT_RTc_InconsistentNonMoving) %>% # Compute interference score
+  mutate (AT_LogRTc_InterferenceNonMoving = AT_LogRTc_ConsistentNonMoving - AT_LogRTc_InconsistentNonMoving) %>% # Compute interference score
+  
+# Reordering the columns for later
+  relocate (AT_ACC_Interference, .after = AT_ACC) %>% 
+  relocate (AT_EFF_Interference, .after = AT_EFF) %>%
+  relocate (AT_RTc_Interference, .after = AT_RTc) %>% 
+  relocate (AT_LogRTc_Interference, .after = AT_LogRTc) %>% 
+  
+  relocate (AT_ACC_InterferenceLiving, .after = AT_ACC_Living) %>% 
+  relocate (AT_EFF_InterferenceLiving, .after = AT_EFF_Living) %>%
+  relocate (AT_RTc_InterferenceLiving, .after = AT_RTc_Living) %>% 
+  relocate (AT_LogRTc_InterferenceLiving, .after = AT_LogRTc_Living) %>% 
+  
+  relocate (AT_ACC_InterferenceNonLiving, .after = AT_ACC_NonLiving) %>% 
+  relocate (AT_EFF_InterferenceNonLiving, .after = AT_EFF_NonLiving) %>%
+  relocate (AT_RTc_InterferenceNonLiving, .after = AT_RTc_NonLiving) %>%  
+  relocate (AT_LogRTc_InterferenceNonLiving, .after = AT_LogRTc_NonLiving) %>%  
+  
+  relocate (AT_ACC_InterferenceMoving, .after = AT_ACC_Moving) %>% 
+  relocate (AT_EFF_InterferenceMoving, .after = AT_EFF_Moving) %>%
+  relocate (AT_RTc_InterferenceMoving, .after = AT_RTc_Moving) %>% 
+  relocate (AT_LogRTc_InterferenceMoving, .after = AT_LogRTc_Moving) %>% 
+  
+  relocate (AT_ACC_InterferenceNonMoving, .after = AT_ACC_NonMoving) %>% 
+  relocate (AT_EFF_InterferenceNonMoving, .after = AT_EFF_NonMoving) %>%
+  relocate (AT_RTc_InterferenceNonMoving, .after = AT_RTc_NonMoving) %>% 
+  relocate (AT_LogRTc_InterferenceNonMoving, .after = AT_LogRTc_NonMoving) 
+```
+```{r Animism Save CSV file CN}
+write.csv(ATmeans, "MEANS_Animism_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```
+
+```{r Buoyancy Import Data CN}
+Buoyancy <- read_csv("TRIALS_BuoyancyTask_CN.csv", 
+                       col_types = cols(BT_trials_key_resp.rt = col_number(),
+                                        BT_trials_RTcorrect = col_number(),
+                                        BT_trials_accuracyscore = col_number()),
+                       na = c("", " ", "NA"))
+Buoyancy <- dplyr::rename (.data = Buoyancy, ResponseType = BT_trials_correctanswer) %>% 
+  dplyr::rename (ConsistencyType = BT_trials_consistency) %>% 
+  dplyr::rename (IntuitionType = BT_trials_intuition) %>% 
+  dplyr::rename (DetailedIntuitionType = BT_trials_type) %>% 
+  dplyr::rename (TrialAccuracy = BT_trials_accuracy) %>% 
+  dplyr::rename (ACC = BT_trials_accuracyscore) %>% 
+  dplyr::rename (RT = BT_trials_key_resp.rt) %>% 
+  filter (RT != 0)%>%
+  dplyr::rename (ParticipantResponse = BT_trials_key_resp.keys) %>% 
+  dplyr::rename (RTcorrect = BT_trials_RTcorrect) %>% 
+  mutate (ParticipantResponse = as.factor(ParticipantResponse)) %>% 
+  mutate (ResponseType = as.factor(ResponseType)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (ConsistencyType = as.factor(ConsistencyType)) %>%
+  mutate (DetailedConsistencyType = as.factor(DetailedIntuitionType)) %>%
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))%>%
+  mutate (LogRTcorrect = log(RTcorrect,10)) # Compute Log (base 10) transformation of RTcorrect
+```
+```{r Buoyancy Compute Participant Means CN}
+GetMean_ACC <- Buoyancy %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(BT_ACC = mean(ACC)) # Compute mean
+GetMean_RTc <- Buoyancy %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- Buoyancy %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- Buoyancy %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Consistent <- Buoyancy %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_ACC_Consistent = mean(ACC)) # Compute mean
+GetMean_RTc_Consistent <- Buoyancy %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc_Consistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Consistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent_1 <- Buoyancy %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Consistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_Inconsistent <- Buoyancy %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_ACC_Inconsistent = mean(ACC)) # Compute mean
+GetMean_RTc_Inconsistent <- Buoyancy %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc_Inconsistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Inconsistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent_1 <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Inconsistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Intuitive <- Buoyancy %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(DetailedIntuitionType == "Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_ACC_Intuitive = mean(ACC)) # Compute mean
+GetMean_RTc_Intuitive <- Buoyancy %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc_Intuitive = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Intuitive <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Intuitive = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Intuitive_1 <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(DetailedIntuitionType == "Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Intuitive_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_Neutral <- Buoyancy %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(DetailedIntuitionType == "Neutral", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_ACC_Neutral = mean(ACC)) # Compute mean
+GetMean_RTc_Neutral <- Buoyancy %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Neutral", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc_Neutral = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Neutral <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Neutral", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Neutral = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Neutral_1 <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(DetailedIntuitionType == "Neutral", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_Neutral_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_CounterIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(DetailedIntuitionType == "Counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_ACC_CounterIntuitive = mean(ACC)) # Compute mean
+GetMean_RTc_CounterIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc_CounterIntuitive = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_CounterIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_CounterIntuitive = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_CounterIntuitive_1 <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(DetailedIntuitionType == "Counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_CounterIntuitive_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_VeryCounterIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_ACC_VeryCounterIntuitive = mean(ACC)) # Compute mean
+GetMean_RTc_VeryCounterIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc_VeryCounterIntuitive = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_VeryCounterIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_VeryCounterIntuitive = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_VeryCounterIntuitive_1 <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very counter intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_VeryCounterIntuitive_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+
+
+GetMean_ACC_VeryIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_ACC_VeryIntuitive = mean(ACC)) # Compute mean
+GetMean_RTc_VeryIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RTc_VeryIntuitive = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_VeryIntuitive <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_VeryIntuitive = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_VeryIntuitive_1 <- Buoyancy %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(DetailedIntuitionType == "Very Intuitive", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_LogRTc_VeryIntuitive_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_RT_Inconsistent <- Buoyancy %>% # Create new data table 
+  drop_na(RT) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RT_Inconsistent = mean(RT)) # Compute mean
+
+GetMean_RT_Consistent <- Buoyancy %>% # Create new data table 
+  drop_na(RT) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(BT_RT_Consistent = mean(RT)) # Compute mean
+
+GetMean_RT <- Buoyancy %>% # Create new data table
+  drop_na(RT) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(BT_RT = mean(RT)) # Compute mean
+
+# Combine data tables
+PTmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_ACC_Consistent, GetMean_ACC_Inconsistent, GetMean_RTc, GetMean_RTc_Consistent, GetMean_RTc_Inconsistent, GetMean_LogRTc, GetMean_LogRTc_1, GetMean_LogRTc_Consistent, GetMean_LogRTc_Inconsistent, GetMean_LogRTc_VeryIntuitive, GetMean_RTc_VeryIntuitive, GetMean_ACC_VeryIntuitive,GetMean_LogRTc_VeryCounterIntuitive, GetMean_RTc_VeryCounterIntuitive, GetMean_ACC_VeryCounterIntuitive, GetMean_ACC_CounterIntuitive, GetMean_RTc_CounterIntuitive, GetMean_LogRTc_CounterIntuitive, GetMean_ACC_Neutral, GetMean_RTc_Neutral, GetMean_LogRTc_Neutral, GetMean_ACC_Intuitive, GetMean_RTc_Intuitive, GetMean_LogRTc_Intuitive, GetMean_LogRTc_Inconsistent_1, GetMean_LogRTc_Consistent_1, GetMean_LogRTc_Intuitive_1, GetMean_LogRTc_Neutral_1,GetMean_LogRTc_CounterIntuitive_1,GetMean_LogRTc_VeryCounterIntuitive_1,GetMean_LogRTc_VeryIntuitive_1,GetMean_RT_Inconsistent, GetMean_RT_Consistent, GetMean_RT ))
+arrange(PTmeans, ParticipantID) # Arrange rows by participant ID
+```
+```{r Buoyancy Compute Efficiencey & Interference CN}
+PTmeans <- mutate (PTmeans, BT_EFF = BT_ACC/BT_RTc) %>% # Compute efficiency score
+  mutate (BT_EFF_Consistent = BT_ACC_Consistent/BT_RTc_Consistent) %>% # Compute efficiency score
+  mutate (BT_EFF_Inconsistent = BT_ACC_Inconsistent/BT_RTc_Inconsistent) %>% # Compute efficiency score
+  
+  mutate (BT_EFF_VeryIntuitive = BT_ACC_VeryIntuitive/BT_RTc_VeryIntuitive) %>% # Compute efficiency score
+  mutate (BT_EFF_VeryCounterIntuitive = BT_ACC_VeryCounterIntuitive/BT_RTc_VeryCounterIntuitive) %>% # Compute efficiency score
+  mutate (BT_EFF_CounterIntuitive = BT_ACC_CounterIntuitive/BT_RTc_CounterIntuitive) %>% # Compute efficiency score
+  mutate (BT_EFF_Intuitive = BT_ACC_Intuitive/BT_RTc_Intuitive) %>% # Compute efficiency score
+  mutate (BT_EFF_Neutral = BT_ACC_Neutral/BT_RTc_Neutral) %>% # Compute efficiency score
+  
+  mutate (BT_ACC_Interference = BT_ACC_Consistent - BT_ACC_Inconsistent) %>% # Compute Interference score
+  mutate (BT_EFF_Interference = BT_EFF_Consistent - BT_EFF_Inconsistent) %>% # Compute Interference score
+  mutate (BT_RTc_Interference = BT_RTc_Consistent - BT_RTc_Inconsistent) %>% # Compute Interference score
+  mutate (BT_LogRTc_Interference = BT_LogRTc_Consistent - BT_LogRTc_Inconsistent) %>% # Compute Interference score
+
+  # Reordering the columns for later
+  relocate (BT_ACC_Interference, .after = BT_ACC) %>% 
+  relocate (BT_EFF_Interference, .after = BT_EFF) %>%
+  relocate (BT_RTc_Interference, .after = BT_RTc) %>%
+  relocate (BT_LogRTc_Interference, .after = BT_LogRTc) 
+```
+```{r Buoyancy Save CSV file CN}
+write.csv(PTmeans, "MEANS_Buoyancy_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```
+
+```{r Science Statement Import Data CN}
+Statements <- read_csv("TRIALS_ScienceStatements_CN.csv", 
+                       col_types = cols(RS_trials_key_resp.rt = col_number(),
+                                        RS_trials_RTcorrect = col_number(),
+                                        RS_trials_accuracyscore = col_number()),
+                       na = c("", " ", "NA"))
+Statements <- dplyr::rename (.data = Statements, ResponseType = RS_trials_trueresponse) %>% #True or false
+  dplyr::rename (TaskType = RS_trials_tasktype) %>% 
+  dplyr::rename (ConsistencyType = RS_trials_consistency) %>% 
+  dplyr::rename (TruthType = RS_trials_truthtype) %>% 
+  dplyr::rename (Theory1Type = RS_trials_theory1truth) %>% 
+  dplyr::rename (Theory2Type = RS_trials_theory2truth) %>% 
+  dplyr::rename (DomainType = RS_trials_domain) %>% 
+  dplyr::rename (ConceptType = RS_trials_concept) %>% 
+  dplyr::rename (TrialAccuracy = RS_trials_accuracy) %>% 
+  dplyr::rename (ACC = RS_trials_accuracyscore) %>% 
+  dplyr::rename (RT = RS_trials_key_resp.rt) %>% 
+  filter (RT != 0)%>%
+  dplyr::rename (ParticipantResponse = RS_trials_key_resp.keys) %>% 
+  dplyr::rename (RTcorrect = RS_trials_RTcorrect) %>% 
+  mutate (ParticipantResponse = as.factor(ParticipantResponse)) %>% 
+  mutate (ResponseType = as.factor(ResponseType)) %>% 
+  mutate (TrialAccuracy = as.factor(TrialAccuracy)) %>% 
+  mutate (ConsistencyType = as.factor(ConsistencyType)) %>%
+  mutate (TruthType = as.factor(TruthType)) %>%
+  mutate (Theory1Type = as.factor(Theory1Type)) %>%
+  mutate (Theory2Type = as.factor(Theory2Type)) %>%
+  mutate (DomainType = as.factor(DomainType)) %>%
+  mutate (ConceptType = as.factor(ConceptType)) %>%
+  mutate (LogRT = log(RT,10)) %>%  # Compute Log (base 10) transformation of RT
+  mutate (LogRTcorrect = log(RTcorrect,10)) %>%# Compute Log (base 10) transformation of RTcorrect
+  mutate (LogRTcorrect_1 = log(RTcorrect+1,10))
+```
+```{r Science Statement Compute Participant Means CN}
+GetMean_ACC <- Statements %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(RS_ACC = mean(ACC)) # Compute mean
+GetMean_RTc <- Statements %>% # Create new data table
+  drop_na(RTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc <- Statements %>% # Create new data table
+  drop_na(LogRTcorrect) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_1 <- Statements %>% # Create new data table
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Consistent <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_Consistent = mean(ACC)) # Compute mean
+GetMean_RTc_Consistent <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_Consistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Consistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Consistent_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Consistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_Inconsistent <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_Inconsistent = mean(ACC)) # Compute mean
+GetMean_RTc_Inconsistent <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_Inconsistent = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Inconsistent = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Inconsistent_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Inconsistent_1 = mean(LogRTcorrect_1)) # Compute mean
+
+
+GetMean_ACC_T1True <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_T1True = mean(ACC)) # Compute mean
+GetMean_RTc_T1True <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_T1True = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_T1True <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_T1True = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_T1True_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_T1True_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_T2True <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_T2True = mean(ACC)) # Compute mean
+GetMean_RTc_T2True <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_T2True = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_T2True <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_T2True = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_T2True_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_T2True_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Biology <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_Biology = mean(ACC)) # Compute mean
+GetMean_RTc_Biology <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_Biology = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Biology <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Biology = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Biology_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Biology_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_Physics <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_Physics = mean(ACC)) # Compute mean
+GetMean_RTc_Physics <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_Physics = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_Physics <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Physics = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_Physics_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_Physics_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentT1True <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_ConsistentT1True = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentT1True <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_ConsistentT1True = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentT1True <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentT1True = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentT1True_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentT1True_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentT1True <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_InconsistentT1True = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentT1True <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_InconsistentT1True = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentT1True <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentT1True = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentT1True_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory1Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentT1True_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentT2True <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_ConsistentT2True = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentT2True <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_ConsistentT2True = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentT2True <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentT2True = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentT2True_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentT2True_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentT2True <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_InconsistentT2True = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentT2True <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_InconsistentT2True = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentT2True <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentT2True = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentT2True_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & Theory2Type == TRUE, .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentT2True_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentBiology <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_ConsistentBiology = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentBiology <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_ConsistentBiology = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentBiology <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentBiology = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentBiology_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentBiology_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentBiology <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_InconsistentBiology = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentBiology <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_InconsistentBiology = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentBiology <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentBiology = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentBiology_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "biology", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentBiology_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_ConsistentPhysics <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_ConsistentPhysics = mean(ACC)) # Compute mean
+GetMean_RTc_ConsistentPhysics <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_ConsistentPhysics = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentPhysics <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentPhysics = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_ConsistentPhysics_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "congruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_ConsistentPhysics_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_ACC_InconsistentPhysics <- Statements %>% # Create new data table 
+  drop_na(ACC) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_ACC_InconsistentPhysics = mean(ACC)) # Compute mean
+GetMean_RTc_InconsistentPhysics <- Statements %>% # Create new data table 
+  drop_na(RTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RTc_InconsistentPhysics = mean(RTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentPhysics <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentPhysics = mean(LogRTcorrect)) # Compute mean
+GetMean_LogRTc_InconsistentPhysics_1 <- Statements %>% # Create new data table 
+  drop_na(LogRTcorrect_1) %>% 
+  dplyr::filter(ConsistencyType == "incongruent" & TaskType == "physics", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_LogRTc_InconsistentPhysics_1 = mean(LogRTcorrect_1)) # Compute mean
+
+GetMean_RT_Inconsistent <- Statements %>% # Create new data table 
+  drop_na(RT) %>% 
+  dplyr::filter(ConsistencyType == "incongruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RT_Inconsistent = mean(RT)) # Compute mean
+
+GetMean_RT_Consistent <- Statements %>% # Create new data table 
+  drop_na(RT) %>% 
+  dplyr::filter(ConsistencyType == "congruent", .preserve = FALSE) %>% 
+  dplyr::group_by(ParticipantID)  %>% # Group by ParticipantID
+  dplyr::summarise(RS_RT_Consistent = mean(RT)) # Compute mean
+
+GetMean_RT <- Statements %>% # Create new data table
+  drop_na(RT) %>% 
+  dplyr::group_by(ParticipantID) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(RS_RT = mean(RT)) # Compute mean
+
+# Combine data tables
+RSmeans <- Reduce(full_join, list (GetMean_ACC, GetMean_ACC_Consistent, GetMean_ACC_Inconsistent, GetMean_ACC_T1True, GetMean_ACC_ConsistentT1True, GetMean_ACC_InconsistentT1True, GetMean_ACC_T2True, GetMean_ACC_ConsistentT2True, GetMean_ACC_InconsistentT2True, GetMean_ACC_Biology, GetMean_ACC_ConsistentBiology, GetMean_ACC_InconsistentBiology, GetMean_ACC_Physics, GetMean_ACC_ConsistentPhysics, GetMean_ACC_InconsistentPhysics, GetMean_RTc, GetMean_RTc_Consistent, GetMean_RTc_Inconsistent, GetMean_RTc_T1True, GetMean_RTc_ConsistentT1True, GetMean_RTc_InconsistentT1True, GetMean_RTc_T2True, GetMean_RTc_ConsistentT2True, GetMean_RTc_InconsistentT2True, GetMean_RTc_Biology, GetMean_RTc_ConsistentBiology, GetMean_RTc_InconsistentBiology, GetMean_RTc_Physics, GetMean_RTc_ConsistentPhysics, GetMean_RTc_InconsistentPhysics, GetMean_LogRTc, GetMean_LogRTc_Consistent, GetMean_LogRTc_Inconsistent, GetMean_LogRTc_T1True, GetMean_LogRTc_ConsistentT1True, GetMean_LogRTc_InconsistentT1True, GetMean_LogRTc_T2True, GetMean_LogRTc_ConsistentT2True, GetMean_LogRTc_InconsistentT2True, GetMean_LogRTc_Biology, GetMean_LogRTc_ConsistentBiology, GetMean_LogRTc_InconsistentBiology, GetMean_LogRTc_Physics, GetMean_LogRTc_ConsistentPhysics, GetMean_LogRTc_InconsistentPhysics, GetMean_LogRTc_1, GetMean_LogRTc_Consistent_1, GetMean_LogRTc_Inconsistent_1, GetMean_LogRTc_T1True_1, GetMean_LogRTc_ConsistentT1True_1, GetMean_LogRTc_InconsistentT1True_1, GetMean_LogRTc_T2True_1, GetMean_LogRTc_ConsistentT2True_1, GetMean_LogRTc_InconsistentT2True_1, GetMean_LogRTc_Biology_1, GetMean_LogRTc_ConsistentBiology_1, GetMean_LogRTc_InconsistentBiology_1, GetMean_LogRTc_Physics_1, GetMean_LogRTc_ConsistentPhysics_1, GetMean_LogRTc_InconsistentPhysics_1,GetMean_RT_Inconsistent, GetMean_RT_Consistent, GetMean_RT ))
+arrange(RSmeans, ParticipantID) # Arrange rows by participant ID
+```
+```{r Science Statement Compute Efficiencey & Interference CN}
+RSmeans <- mutate(RSmeans, RS_EFF = RS_ACC/RS_RTc) %>% # Compute efficiency score
+  mutate(RS_EFF_Consistent = RS_ACC_Consistent/RS_RTc_Consistent) %>% # Compute efficiency score
+  mutate(RS_EFF_Inconsistent = RS_ACC_Inconsistent/RS_RTc_Inconsistent) %>% # Compute efficiency score
+  
+  mutate(RS_EFF_T1True = RS_ACC_T1True/RS_RTc_T1True) %>% # Compute efficiency score
+  mutate(RS_EFF_ConsistentT1True = RS_ACC_ConsistentT1True/RS_RTc_ConsistentT1True) %>% # Compute efficiency score
+  mutate(RS_EFF_InconsistentT1True = RS_ACC_InconsistentT1True/RS_RTc_InconsistentT1True) %>% # Compute efficiency score
+  
+  mutate(RS_EFF_T2True = RS_ACC_T2True/RS_RTc_T2True) %>% # Compute efficiency score
+  mutate(RS_EFF_ConsistentT2True = RS_ACC_ConsistentT2True/RS_RTc_ConsistentT2True) %>% # Compute efficiency score
+  mutate(RS_EFF_InconsistentT2True = RS_ACC_InconsistentT2True/RS_RTc_InconsistentT2True) %>% # Compute efficiency score
+  
+  mutate(RS_EFF_Biology = RS_ACC_Biology/RS_RTc_Biology) %>% # Compute efficiency score
+  mutate(RS_EFF_ConsistentBiology = RS_ACC_ConsistentBiology/RS_RTc_ConsistentBiology) %>% # Compute efficiency score
+  mutate(RS_EFF_InconsistentBiology = RS_ACC_InconsistentBiology/RS_RTc_InconsistentBiology) %>% # Compute efficiency score
+  
+  mutate(RS_EFF_Physics = RS_ACC_Physics/RS_RTc_Physics) %>% # Compute efficiency score
+  mutate(RS_EFF_ConsistentPhysics = RS_ACC_ConsistentPhysics/RS_RTc_ConsistentPhysics) %>% # Compute efficiency score
+  mutate(RS_EFF_InconsistentPhysics = RS_ACC_InconsistentPhysics/RS_RTc_InconsistentPhysics) %>% # Compute efficiency score
+  
+  mutate (RS_ACC_Interference = RS_ACC_Consistent - RS_ACC_Inconsistent) %>% # Compute interference score
+  mutate (RS_EFF_Interference = RS_EFF_Consistent - RS_EFF_Inconsistent) %>% # Compute interference score
+  mutate (RS_RTc_Interference = RS_RTc_Consistent - RS_RTc_Inconsistent) %>% # Compute interference score
+  mutate (RS_LogRTc_Interference = RS_LogRTc_Consistent - RS_LogRTc_Inconsistent) %>% # Compute interference score
+  
+  mutate (RS_ACC_InterferenceT1True = RS_ACC_ConsistentT1True - RS_ACC_InconsistentT1True) %>% # Compute interference score
+  mutate (RS_EFF_InterferenceT1True = RS_EFF_ConsistentT1True - RS_EFF_InconsistentT1True) %>% # Compute interference score
+  mutate (RS_RTc_InterferenceT1True = RS_RTc_ConsistentT1True - RS_RTc_InconsistentT1True) %>% # Compute interference score
+  mutate (RS_LogRTc_InterferenceT1True = RS_LogRTc_ConsistentT1True - RS_LogRTc_InconsistentT1True) %>% # Compute interference score
+  
+  mutate (RS_ACC_InterferenceT2True = RS_ACC_ConsistentT2True - RS_ACC_InconsistentT2True) %>% # Compute interference score
+  mutate (RS_EFF_InterferenceT2True = RS_EFF_ConsistentT2True - RS_EFF_InconsistentT2True) %>% # Compute interference score
+  mutate (RS_RTc_InterferenceT2True = RS_RTc_ConsistentT2True - RS_RTc_InconsistentT2True) %>% # Compute interference score
+  mutate (RS_LogRTc_InterferenceT2True = RS_LogRTc_ConsistentT2True - RS_LogRTc_InconsistentT2True) %>% # Compute interference score
+  
+  mutate (RS_ACC_InterferenceBiology = RS_ACC_ConsistentBiology - RS_ACC_InconsistentBiology) %>% # Compute interference score
+  mutate (RS_EFF_InterferenceBiology = RS_EFF_ConsistentBiology - RS_EFF_InconsistentBiology) %>% # Compute interference score
+  mutate (RS_RTc_InterferenceBiology = RS_RTc_ConsistentBiology - RS_RTc_InconsistentBiology) %>% # Compute interference score
+  mutate (RS_LogRTc_InterferenceBiology = RS_LogRTc_ConsistentBiology - RS_LogRTc_InconsistentBiology) %>% # Compute interference score
+  
+  mutate (RS_ACC_InterferencePhysics = RS_ACC_ConsistentPhysics - RS_ACC_InconsistentPhysics) %>% # Compute interference score
+  mutate (RS_EFF_InterferencePhysics = RS_EFF_ConsistentPhysics - RS_EFF_InconsistentPhysics) %>% # Compute interference score
+  mutate (RS_RTc_InterferencePhysics = RS_RTc_ConsistentPhysics - RS_RTc_InconsistentPhysics) %>% # Compute interference score
+  mutate (RS_LogRTc_InterferencePhysics = RS_LogRTc_ConsistentPhysics - RS_LogRTc_InconsistentPhysics) %>% # Compute interference score
+
+  # Reordering the columns for later
+  relocate (RS_ACC_Interference, .after = RS_ACC) %>% 
+  relocate (RS_EFF_Interference, .after = RS_EFF) %>%
+  relocate (RS_RTc_Interference, .after = RS_RTc) %>% 
+  relocate (RS_LogRTc_Interference, .after = RS_LogRTc) %>% 
+  
+  relocate (RS_ACC_InterferenceT1True, .after = RS_ACC_T1True) %>% 
+  relocate (RS_EFF_InterferenceT1True, .after = RS_EFF_T1True) %>%
+  relocate (RS_RTc_InterferenceT1True, .after = RS_RTc_T1True) %>% 
+  relocate (RS_LogRTc_InterferenceT2True, .after = RS_LogRTc_T2True) %>% 
+  
+  relocate (RS_ACC_InterferenceT2True, .after = RS_ACC_T2True) %>% 
+  relocate (RS_EFF_InterferenceT2True, .after = RS_EFF_T2True) %>%
+  relocate (RS_RTc_InterferenceT2True, .after = RS_RTc_T2True) %>% 
+  relocate (RS_LogRTc_InterferenceT2True, .after = RS_LogRTc_T2True) %>% 
+  
+  relocate (RS_ACC_InterferenceBiology, .after = RS_ACC_Biology) %>% 
+  relocate (RS_EFF_InterferenceBiology, .after = RS_EFF_Biology) %>%
+  relocate (RS_RTc_InterferenceBiology, .after = RS_RTc_Biology) %>% 
+  relocate (RS_LogRTc_InterferenceBiology, .after = RS_LogRTc_Biology) %>% 
+  
+  relocate (RS_ACC_InterferencePhysics, .after = RS_ACC_Physics) %>% 
+  relocate (RS_EFF_InterferencePhysics, .after = RS_EFF_Physics) %>%
+  relocate (RS_RTc_InterferencePhysics, .after = RS_RTc_Physics) %>% 
+  relocate (RS_LogRTc_InterferencePhysics, .after = RS_LogRTc_Physics)  
+```
+```{r Science Statement Save CSV file CN}
+write.csv(RSmeans, "MEANS_Statements_CN.csv", row.names = FALSE) # Save data as CSV file to be used in other R scripts
+```

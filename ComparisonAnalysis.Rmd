@@ -1,0 +1,756 @@
+---
+title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy Comparsion Analysis'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Note for abbreviations: SS = Stop Signal task; FT = Flanker task; FM = Figure Matching task; CB = Corsi Block task; MRIB = Matrix Reasoning task; AT = Animism task; BT = Buoyancy task; RS = Science Statement task; ACC = accuracy; RTc = Response Time for correct trials; EFF = efficiency
+
+Packages and load data
+```{r Load Libraries}
+library(tidyverse) # For data wrangling
+library(car) # Needed to run Levene test
+library(lsr) # Navarro package for running psychology tests
+library(dplyr) # For data wrangling
+library(psych) # for key psychology stats
+library(readr)  # for read_csv()
+library(afex) # Used for running the ANOVAs
+library(effects) # Effects package, needed for the estimated means, includes lower/upper 95% confidence limits
+library(apaTables) # Creates APA tables for the results
+library (Matrix) #Provides the necessary matrix operations for mixed models.
+library (data.table) #read tables
+# Activate the libraries 
+library(tidyverse) # For data wrangling
+library(ggplot2) # for the graphs
+library (lme4) # Needed to run REML ANOVAs
+library (lmerTest) # Needed to run REML ANOVAs
+library (emmeans) # Needed to run follow-up tests
+library (simr) # Needed to run emmeans for REML
+```
+```{r Import Data}
+# Import data
+ALLdata_CN <- read.csv("CNdata.csv", header = TRUE, na.strings=c(""," ","NA"))
+ALLdata_UK <- read.csv("UKdata.csv", header = TRUE, na.strings=c(""," ","NA"))
+
+# Find the common column names between ALLdata_UK and ALLdata_CN
+common_cols <- intersect(names(ALLdata_UK), names(ALLdata_CN))
+
+# Subset both data frames to only include the common columns and use rbind to combine them
+ALLdata <- rbind(
+  CNdata[, common_cols, drop = FALSE],
+  UKdata[, common_cols, drop = FALSE]
+)
+```
+
+Compare science edu & general cognitive ability & executive functions across site
+```{r run ACC Demographic & EF & MIRB ANOVA}
+REMLanova_ACC <- lmer(STEMscore ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_ACC)
+summary(REMLanova_ACC)
+cohen.d(STEMscore ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_ACC <- lmer(MRIB_ACC ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_ACC)
+summary(REMLanova_ACC)
+cohen.d(MRIB_ACC ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_ACC <- lmer(SS_ACC ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_ACC)
+summary(REMLanova_ACC)
+cohen.d(SS_ACC ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_ACC <- lmer(FT_ACC ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_ACC)
+summary(REMLanova_ACC)
+cohen.d(FT_ACC ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_ACC <- lmer(FM_ACC ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_ACC)
+summary(REMLanova_ACC)
+cohen.d(FM_ACC ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_ACC <- lmer(CB_ACC_backward ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_ACC)
+summary(REMLanova_ACC)
+cohen.d(CB_ACC_backward ~ Site, data = ALLdata) # Compute Cohen's d for Site
+```
+```{r run RTc Demographic & EF & MIRB ANOVA}
+REMLanova_RTc <- lmer(STEMscore ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_RTc)
+summary(REMLanova_RTc)
+cohen.d(STEMscore ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_RTc <- lmer(MRIB_RTc ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_RTc)
+summary(REMLanova_RTc)
+cohen.d(MRIB_RTc ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_RTc <- lmer(SS_RTc ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_RTc)
+summary(REMLanova_RTc)
+cohen.d(SS_RTc ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_RTc <- lmer(FT_RTc ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_RTc)
+summary(REMLanova_RTc)
+cohen.d(FT_RTc ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_RTc <- lmer(FM_RTc ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_RTc)
+summary(REMLanova_RTc)
+cohen.d(FM_RTc ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_RTc <- lmer(CB_RTc_backward ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_RTc)
+summary(REMLanova_RTc)
+cohen.d(CB_RTc_backward ~ Site, data = ALLdata) # Compute Cohen's d for Site
+```
+```{r run EFF Demographic & EF & MIRB ANOVA}
+REMLanova_EFF <- lmer(STEMscore ~ Site + (1 | ParticipantID), data = ALLdata, REML = TRUE) 
+anova(REMLanova_EFF)
+summary(REMLanova_EFF)
+cohen.d(STEMscore ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_EFF <- lmer(MRIB_EFF ~ Site + (1 | ParticipantID), data = ALLdata, REML = TRUE) 
+anova(REMLanova_EFF)
+summary(REMLanova_EFF)
+cohen.d(MRIB_EFF ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_EFF <- lmer(SS_EFF ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_EFF)
+summary(REMLanova_EFF)
+cohen.d(SS_EFF ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_EFF <- lmer(FT_EFF ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_EFF)
+summary(REMLanova_EFF)
+cohen.d(FT_EFF ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_EFF <- lmer(FM_EFF ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_EFF)
+summary(REMLanova_EFF)
+cohen.d(FM_EFF ~ Site, data = ALLdata) # Compute Cohen's d for Site
+
+REMLanova_EFF <- lmer(CB_EFF_backward ~ Site + (1 | ParticipantID) , data = ALLdata, REML = TRUE) 
+anova(REMLanova_EFF)
+summary(REMLanova_EFF)
+cohen.d(CB_EFF_backward ~ Site, data = ALLdata) # Compute Cohen's d for Site
+```
+
+Create data set for later ANOVA
+```{r Create ACC Naive Thinking dataset, include=FALSE}
+# Select columns
+ACCdata_CN <- dplyr::select(.data = ALLdata_CN, ParticipantID, AT_ACC_Consistent, AT_ACC_Inconsistent, RS_ACC_Consistent, RS_ACC_Inconsistent, BT_ACC_Consistent, BT_ACC_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_ACC_Consistent", "AT_ACC_Inconsistent",  
+          "RS_ACC_Consistent", "RS_ACC_Inconsistent",
+          "BT_ACC_Consistent", "BT_ACC_Inconsistent",
+          key = "Variable", value = "ACC") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_ACC_Consistent" ~ "Animism",
+                                    Variable == "AT_ACC_Inconsistent" ~ "Animism",
+                                    Variable == "RS_ACC_Consistent" ~ "Statements",
+                                    Variable == "RS_ACC_Inconsistent" ~ "Statements",
+                                    Variable == "BT_ACC_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_ACC_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_ACC_Consistent" ~ "Consistent",
+                                    Variable == "AT_ACC_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_ACC_Consistent" ~ "Consistent",
+                                    Variable == "RS_ACC_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_ACC_Consistent" ~ "Consistent",
+                                    Variable == "BT_ACC_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site))  
+
+# Select columns
+ACCdata_UK <- dplyr::select(.data = ALLdata_UK, ParticipantID, AT_ACC_Consistent, AT_ACC_Inconsistent, RS_ACC_Consistent, RS_ACC_Inconsistent, BT_ACC_Consistent, BT_ACC_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_ACC_Consistent", "AT_ACC_Inconsistent",  
+          "RS_ACC_Consistent", "RS_ACC_Inconsistent",
+          "BT_ACC_Consistent", "BT_ACC_Inconsistent",
+          key = "Variable", value = "ACC") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_ACC_Consistent" ~ "Animism",
+                                    Variable == "AT_ACC_Inconsistent" ~ "Animism",
+                                    Variable == "RS_ACC_Consistent" ~ "Statements",
+                                    Variable == "RS_ACC_Inconsistent" ~ "Statements",
+                                    Variable == "BT_ACC_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_ACC_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_ACC_Consistent" ~ "Consistent",
+                                    Variable == "AT_ACC_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_ACC_Consistent" ~ "Consistent",
+                                    Variable == "RS_ACC_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_ACC_Consistent" ~ "Consistent",
+                                    Variable == "BT_ACC_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site)) 
+
+# Select columns
+ACCdata <- dplyr::select(.data = ALLdata, ParticipantID, AT_ACC_Consistent, AT_ACC_Inconsistent, RS_ACC_Consistent, RS_ACC_Inconsistent, BT_ACC_Consistent, BT_ACC_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_ACC_Consistent", "AT_ACC_Inconsistent",  
+          "RS_ACC_Consistent", "RS_ACC_Inconsistent",
+          "BT_ACC_Consistent", "BT_ACC_Inconsistent",
+          key = "Variable", value = "ACC") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_ACC_Consistent" ~ "Animism",
+                                    Variable == "AT_ACC_Inconsistent" ~ "Animism",
+                                    Variable == "RS_ACC_Consistent" ~ "Statements",
+                                    Variable == "RS_ACC_Inconsistent" ~ "Statements",
+                                    Variable == "BT_ACC_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_ACC_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_ACC_Consistent" ~ "Consistent",
+                                    Variable == "AT_ACC_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_ACC_Consistent" ~ "Consistent",
+                                    Variable == "RS_ACC_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_ACC_Consistent" ~ "Consistent",
+                                    Variable == "BT_ACC_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site)) 
+```
+```{r Create RTc Naive Thinking dataset, include=FALSE}
+# Select columns
+RTcdata_CN <- dplyr::select(.data = ALLdata_CN, ParticipantID, AT_RTc_Consistent, AT_RTc_Inconsistent, RS_RTc_Consistent, RS_RTc_Inconsistent, BT_RTc_Consistent, BT_RTc_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_RTc_Consistent", "AT_RTc_Inconsistent",  
+          "RS_RTc_Consistent", "RS_RTc_Inconsistent",
+          "BT_RTc_Consistent", "BT_RTc_Inconsistent",
+          key = "Variable", value = "RTc") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_RTc_Consistent" ~ "Animism",
+                                    Variable == "AT_RTc_Inconsistent" ~ "Animism",
+                                    Variable == "RS_RTc_Consistent" ~ "Statements",
+                                    Variable == "RS_RTc_Inconsistent" ~ "Statements",
+                                    Variable == "BT_RTc_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_RTc_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_RTc_Consistent" ~ "Consistent",
+                                    Variable == "AT_RTc_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_RTc_Consistent" ~ "Consistent",
+                                    Variable == "RS_RTc_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_RTc_Consistent" ~ "Consistent",
+                                    Variable == "BT_RTc_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site))  
+
+# Select columns
+RTcdata_UK <- dplyr::select(.data = ALLdata_UK, ParticipantID, AT_RTc_Consistent, AT_RTc_Inconsistent, RS_RTc_Consistent, RS_RTc_Inconsistent, BT_RTc_Consistent, BT_RTc_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_RTc_Consistent", "AT_RTc_Inconsistent",  
+          "RS_RTc_Consistent", "RS_RTc_Inconsistent",
+          "BT_RTc_Consistent", "BT_RTc_Inconsistent",
+          key = "Variable", value = "RTc") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_RTc_Consistent" ~ "Animism",
+                                    Variable == "AT_RTc_Inconsistent" ~ "Animism",
+                                    Variable == "RS_RTc_Consistent" ~ "Statements",
+                                    Variable == "RS_RTc_Inconsistent" ~ "Statements",
+                                    Variable == "BT_RTc_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_RTc_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_RTc_Consistent" ~ "Consistent",
+                                    Variable == "AT_RTc_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_RTc_Consistent" ~ "Consistent",
+                                    Variable == "RS_RTc_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_RTc_Consistent" ~ "Consistent",
+                                    Variable == "BT_RTc_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site)) 
+
+# Select columns
+RTcdata <- dplyr::select(.data = ALLdata, ParticipantID, AT_RTc_Consistent, AT_RTc_Inconsistent, RS_RTc_Consistent, RS_RTc_Inconsistent, BT_RTc_Consistent, BT_RTc_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_RTc_Consistent", "AT_RTc_Inconsistent",  
+          "RS_RTc_Consistent", "RS_RTc_Inconsistent",
+          "BT_RTc_Consistent", "BT_RTc_Inconsistent",
+          key = "Variable", value = "RTc") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_RTc_Consistent" ~ "Animism",
+                                    Variable == "AT_RTc_Inconsistent" ~ "Animism",
+                                    Variable == "RS_RTc_Consistent" ~ "Statements",
+                                    Variable == "RS_RTc_Inconsistent" ~ "Statements",
+                                    Variable == "BT_RTc_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_RTc_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_RTc_Consistent" ~ "Consistent",
+                                    Variable == "AT_RTc_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_RTc_Consistent" ~ "Consistent",
+                                    Variable == "RS_RTc_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_RTc_Consistent" ~ "Consistent",
+                                    Variable == "BT_RTc_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site)) 
+```
+```{r Create EFF Naive Thinking dataset, include=FALSE}
+# Select columns
+EFFdata_CN <- dplyr::select(.data = ALLdata_CN, ParticipantID, AT_EFF_Consistent, AT_EFF_Inconsistent, RS_EFF_Consistent, RS_EFF_Inconsistent, BT_EFF_Consistent, BT_EFF_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_EFF_Consistent", "AT_EFF_Inconsistent",  
+          "RS_EFF_Consistent", "RS_EFF_Inconsistent",
+          "BT_EFF_Consistent", "BT_EFF_Inconsistent",
+          key = "Variable", value = "EFF") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_EFF_Consistent" ~ "Animism",
+                                    Variable == "AT_EFF_Inconsistent" ~ "Animism",
+                                    Variable == "RS_EFF_Consistent" ~ "Statements",
+                                    Variable == "RS_EFF_Inconsistent" ~ "Statements",
+                                    Variable == "BT_EFF_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_EFF_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_EFF_Consistent" ~ "Consistent",
+                                    Variable == "AT_EFF_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_EFF_Consistent" ~ "Consistent",
+                                    Variable == "RS_EFF_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_EFF_Consistent" ~ "Consistent",
+                                    Variable == "BT_EFF_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site))  
+
+# Select columns
+EFFdata_UK <- dplyr::select(.data = ALLdata_UK, ParticipantID, AT_EFF_Consistent, AT_EFF_Inconsistent, RS_EFF_Consistent, RS_EFF_Inconsistent, BT_EFF_Consistent, BT_EFF_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_EFF_Consistent", "AT_EFF_Inconsistent",  
+          "RS_EFF_Consistent", "RS_EFF_Inconsistent",
+          "BT_EFF_Consistent", "BT_EFF_Inconsistent",
+          key = "Variable", value = "EFF") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_EFF_Consistent" ~ "Animism",
+                                    Variable == "AT_EFF_Inconsistent" ~ "Animism",
+                                    Variable == "RS_EFF_Consistent" ~ "Statements",
+                                    Variable == "RS_EFF_Inconsistent" ~ "Statements",
+                                    Variable == "BT_EFF_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_EFF_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_EFF_Consistent" ~ "Consistent",
+                                    Variable == "AT_EFF_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_EFF_Consistent" ~ "Consistent",
+                                    Variable == "RS_EFF_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_EFF_Consistent" ~ "Consistent",
+                                    Variable == "BT_EFF_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site)) 
+
+# Select columns
+EFFdata <- dplyr::select(.data = ALLdata, ParticipantID, AT_EFF_Consistent, AT_EFF_Inconsistent, RS_EFF_Consistent, RS_EFF_Inconsistent, BT_EFF_Consistent, BT_EFF_Inconsistent,Site) %>% 
+# Transform data table from wide to long format
+   gather("AT_EFF_Consistent", "AT_EFF_Inconsistent",  
+          "RS_EFF_Consistent", "RS_EFF_Inconsistent",
+          "BT_EFF_Consistent", "BT_EFF_Inconsistent",
+          key = "Variable", value = "EFF") %>% 
+   mutate (Task = dplyr::case_when (Variable == "AT_EFF_Consistent" ~ "Animism",
+                                    Variable == "AT_EFF_Inconsistent" ~ "Animism",
+                                    Variable == "RS_EFF_Consistent" ~ "Statements",
+                                    Variable == "RS_EFF_Inconsistent" ~ "Statements",
+                                    Variable == "BT_EFF_Consistent" ~ "Buoyancy",
+                                    Variable == "BT_EFF_Inconsistent" ~ "Buoyancy")) %>% 
+   mutate (ConsistencyType = dplyr::case_when (Variable == "AT_EFF_Consistent" ~ "Consistent",
+                                    Variable == "AT_EFF_Inconsistent" ~ "Inconsistent",
+                                    Variable == "RS_EFF_Consistent" ~ "Consistent",
+                                    Variable == "RS_EFF_Inconsistent" ~ "Inconsistent",
+                                    Variable == "BT_EFF_Consistent" ~ "Consistent",
+                                    Variable == "BT_EFF_Inconsistent" ~ "Inconsistent")) %>% 
+   mutate (Task = as.factor(Task)) %>% 
+   mutate (ConsistencyType = as.factor(ConsistencyType))%>% 
+   mutate (Site = as.factor(Site)) 
+```
+
+Compare explanatory coexistence across site, consistency, task
+```{r run ACC Naive Thinking ANOVA}
+# Run REML ANOVA for ACC (ACCuracy)
+REMLanova_ACC <- lmer(ACC ~ ConsistencyType*Task*Site + (1 | ParticipantID)+ (1 | ParticipantID:ConsistencyType)+ (1 | ParticipantID:Task), data = ACCdata, REML = TRUE) 
+anova(REMLanova_ACC)
+summary(REMLanova_ACC)
+# Run post hoc tests and compute effect size, post hoc tests use Tukey adjustment for multiple comparisons
+# Not strictly necessary to run post hoc for ConsistencyType as only two levels, but doing so to compute effect size
+# Effect size is Cohen's d (note edf is degrees of freedom, value set to Inf to allow for the specific df in the model)
+# Sites used to set up this code: https://cran.r-project.org/web/packages/emmeans/vignettes/interactions.html and https://cran.r-project.org/web/packages/emmeans/vignettes/comparisons.html#pairwise
+
+PostHoc_Consistency_ACC <- emmeans(REMLanova_ACC, pairwise ~ ConsistencyType) # Post hoc for ConsistencyType
+ACC_summary <- ACCdata %>%
+  group_by(ConsistencyType) %>%
+  summarise(
+    mean_ACC = mean(ACC, na.rm = TRUE),
+    sd_ACC = sd(ACC_summary, na.rm = TRUE)
+  )# calculate mean and sd, not shown in descriptive stats when use describeBy()
+eff_size(PostHoc_Consistency_ACC, sigma = sigma(REMLanova_ACC), edf = Inf) # Compute Cohen's d for ConsistencyType, 
+
+PostHoc_Task_ACC <- emmeans(REMLanova_ACC, pairwise ~ Task) # Post hoc for Task
+PostHoc_Task_ACC # Show means
+eff_size(PostHoc_Task_ACC, sigma = sigma(REMLanova_ACC), edf = Inf) # Compute Cohen's d for Task
+
+PostHoc_Site_ACC <- emmeans(REMLanova_ACC, pairwise ~ Site) # Post hoc for Task
+ACC_summary <- ACCdata %>%
+  group_by(Site) %>%
+  summarise(
+    mean_ACC = mean(ACC, na.rm = TRUE),
+    sd_ACC = sd(ACC_summary, na.rm = TRUE)
+  )# calculate mean and sd, not shown in descriptive stats when use describeBy()
+eff_size(PostHoc_Site_ACC, sigma = sigma(REMLanova_ACC), edf = Inf) # Compute Cohen's d for Task
+
+PostHoc_ConsistencyTask_ACC <- emmeans(REMLanova_ACC, pairwise ~ ConsistencyType | Task ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencyTask_ACC # Show means
+eff_size(PostHoc_ConsistencyTask_ACC, sigma = sigma(REMLanova_ACC), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_SiteTask_ACC <- emmeans(REMLanova_ACC, pairwise ~ Site | Task ) # Post hoc for Task x ConsistencyType
+PostHoc_SiteTask_ACC # Show means
+eff_size(PostHoc_SiteTask_ACC, sigma = sigma(REMLanova_ACC), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_ConsistencySite_ACC <- emmeans(REMLanova_ACC, pairwise ~ ConsistencyType | Site ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencySite_ACC # Show means
+eff_size(PostHoc_ConsistencySite_ACC, sigma = sigma(REMLanova_ACC), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_ConsistencySiteTask_ACC <- emmeans(REMLanova_ACC, pairwise ~ ConsistencyType| Task | Site ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencySiteTask_ACC # Show means
+eff_size(PostHoc_ConsistencySiteTask_ACC, sigma = sigma(REMLanova_ACC), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+ # Check QQ-plots for ACC (checking assumptions of the ANOVA)
+par(mfrow = c(1, 3))
+qqnorm(ranef(REMLanova_ACC)$ParticipantID[, 1], main = "Random effects of participant")
+qqnorm(ranef(REMLanova_ACC)$'ConsistencyType:ParticipantID'[, 1], main = "Random interaction with ConsistencyType")
+qqnorm(resid(REMLanova_ACC), main = "Residuals")
+```
+```{r run RTc Naive Thinking ANOVA}
+# Run REML ANOVA for RTc (RTcuracy)
+REMLanova_RTc <- lmer(RTc ~ ConsistencyType*Task*Site + (1 | ParticipantID)+ (1 | ParticipantID:ConsistencyType)+ (1 | ParticipantID:Task), data = RTcdata, REML = TRUE) 
+anova(REMLanova_RTc)
+summary(REMLanova_RTc)
+# Run post hoc tests and compute effect size, post hoc tests use Tukey adjustment for multiple comparisons
+# Not strictly necessary to run post hoc for ConsistencyType as only two levels, but doing so to compute effect size
+# Effect size is Cohen's d (note edf is degrees of freedom, value set to Inf to allow for the specific df in the model)
+# Sites used to set up this code: https://cran.r-project.org/web/packages/emmeans/vignettes/interactions.html and https://cran.r-project.org/web/packages/emmeans/vignettes/comparisons.html#pairwise
+
+PostHoc_Consistency_RTc <- emmeans(REMLanova_RTc, pairwise ~ ConsistencyType) # Post hoc for ConsistencyType
+RTc_summary <- RTcdata %>%
+  group_by(ConsistencyType) %>%
+  summarise(
+    mean_RTc = mean(RTc, na.rm = TRUE),
+    sd_RTc = sd(RTc_summary, na.rm = TRUE)
+  )# calculate mean and sd, not shown in descriptive stats when use describeBy()
+eff_size(PostHoc_Consistency_RTc, sigma = sigma(REMLanova_RTc), edf = Inf) # Compute Cohen's d for ConsistencyType, 
+
+PostHoc_Task_RTc <- emmeans(REMLanova_RTc, pairwise ~ Task) # Post hoc for Task
+PostHoc_Task_RTc # Show means
+eff_size(PostHoc_Task_RTc, sigma = sigma(REMLanova_RTc), edf = Inf) # Compute Cohen's d for Task
+
+PostHoc_Site_RTc <- emmeans(REMLanova_RTc, pairwise ~ Site) # Post hoc for Task
+RTc_summary <- RTcdata %>% 
+  group_by(Site) %>%
+  summarise(
+    mean_RTc = mean(RTc, na.rm = TRUE),
+    sd_RTc = sd(RTc_summary, na.rm = TRUE)
+  ) # calculate mean and sd, not shown in descriptive stats when use describeBy()
+eff_size(PostHoc_Site_RTc, sigma = sigma(REMLanova_RTc), edf = Inf) # Compute Cohen's d for Task
+
+PostHoc_ConsistencyTask_RTc <- emmeans(REMLanova_RTc, pairwise ~ ConsistencyType | Task ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencyTask_RTc # Show means
+eff_size(PostHoc_ConsistencyTask_RTc, sigma = sigma(REMLanova_RTc), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_SiteTask_RTc <- emmeans(REMLanova_RTc, pairwise ~ Site | Task ) # Post hoc for Task x ConsistencyType
+PostHoc_SiteTask_RTc # Show means
+eff_size(PostHoc_SiteTask_RTc, sigma = sigma(REMLanova_RTc), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_ConsistencySite_RTc <- emmeans(REMLanova_RTc, pairwise ~ ConsistencyType | Site ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencySite_RTc # Show means
+eff_size(PostHoc_ConsistencySite_RTc, sigma = sigma(REMLanova_RTc), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_ConsistencySiteTask_RTc <- emmeans(REMLanova_RTc, pairwise ~ ConsistencyType| Task | Site ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencySiteTask_RTc # Show means
+eff_size(PostHoc_ConsistencySiteTask_RTc, sigma = sigma(REMLanova_RTc), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+ # Check QQ-plots for RTc (checking assumptions of the ANOVA)
+par(mfrow = c(1, 3))
+qqnorm(ranef(REMLanova_RTc)$ParticipantID[, 1], main = "Random effects of participant")
+qqnorm(ranef(REMLanova_RTc)$'ConsistencyType:ParticipantID'[, 1], main = "Random interaction with ConsistencyType")
+qqnorm(resid(REMLanova_RTc), main = "Residuals")
+```
+```{r run EFF Naive Thinking ANOVA}
+# Run REML ANOVA for EFF (EFFuracy)
+REMLanova_EFF <- lmer(EFF ~ ConsistencyType*Task*Site + (1 | ParticipantID)+ (1 | ParticipantID:ConsistencyType)+ (1 | ParticipantID:Task), data = EFFdata, REML = TRUE) 
+anova(REMLanova_EFF)
+summary(REMLanova_EFF)
+# Run post hoc tests and compute effect size, post hoc tests use Tukey adjustment for multiple comparisons
+# Not strictly necessary to run post hoc for ConsistencyType as only two levels, but doing so to compute effect size
+# Effect size is Cohen's d (note edf is degrees of freedom, value set to Inf to allow for the specific df in the model)
+# Sites used to set up this code: https://cran.r-project.org/web/packages/emmeans/vignettes/interactions.html and https://cran.r-project.org/web/packages/emmeans/vignettes/comparisons.html#pairwise
+
+PostHoc_Consistency_EFF <- emmeans(REMLanova_EFF, pairwise ~ ConsistencyType) # Post hoc for ConsistencyType
+# Show means & SD
+EFF_summary <- EFFdata %>%
+  group_by(ConsistencyType) %>%
+  summarise(
+    mean_EFF = mean(EFF, na.rm = TRUE),
+    sd_EFF = sd(EFF, na.rm = TRUE)
+  )# calculate mean and sd, not shown in descriptive stats when use describeBy()
+eff_size(PostHoc_Consistency_EFF, sigma = sigma(REMLanova_EFF), edf = Inf) # Compute Cohen's d for ConsistencyType
+
+PostHoc_Task_EFF <- emmeans(REMLanova_EFF, pairwise ~ Task) # Post hoc for Task
+PostHoc_Task_EFF # Show means
+eff_size(PostHoc_Task_EFF, sigma = sigma(REMLanova_EFF), edf = Inf) # Compute Cohen's d for Task
+
+PostHoc_Site_EFF <- emmeans(REMLanova_EFF, pairwise ~ Site) # Post hoc for Task
+# Show means & SD
+EFF_summary <- EFFdata %>%
+  group_by(Site) %>%
+  summarise(
+    mean_EFF = mean(EFF, na.rm = TRUE),
+    sd_EFF = sd(EFF, na.rm = TRUE)
+  )# calculate mean and sd, not shown in descriptive stats when use describeBy()
+eff_size(PostHoc_Site_EFF, sigma = sigma(REMLanova_EFF), edf = Inf) # Compute Cohen's d for Task
+
+PostHoc_ConsistencyTask_EFF <- emmeans(REMLanova_EFF, pairwise ~ ConsistencyType | Task ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencyTask_EFF # Show means
+eff_size(PostHoc_ConsistencyTask_EFF, sigma = sigma(REMLanova_EFF), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_SiteTask_EFF <- emmeans(REMLanova_EFF, pairwise ~ Site | Task ) # Post hoc for Task x ConsistencyType
+PostHoc_SiteTask_EFF # Show means
+eff_size(PostHoc_SiteTask_EFF, sigma = sigma(REMLanova_EFF), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_ConsistencySite_EFF <- emmeans(REMLanova_EFF, pairwise ~ ConsistencyType | Site ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencySite_EFF # Show means
+eff_size(PostHoc_ConsistencySite_EFF, sigma = sigma(REMLanova_EFF), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+PostHoc_ConsistencySiteTask_EFF <- emmeans(REMLanova_EFF, pairwise ~ ConsistencyType| Task | Site ) # Post hoc for Task x ConsistencyType
+PostHoc_ConsistencySiteTask_EFF # Show means
+eff_size(PostHoc_ConsistencySiteTask_EFF, sigma = sigma(REMLanova_EFF), edf = Inf) # Compute Cohen's d for Task x ConsistencyType
+
+ # Check QQ-plots for EFF (checking assumptions of the ANOVA)
+par(mfrow = c(1, 3))
+qqnorm(ranef(REMLanova_EFF)$ParticipantID[, 1], main = "Random effects of participant")
+qqnorm(ranef(REMLanova_EFF)$'ConsistencyType:ParticipantID'[, 1], main = "Random interaction with ConsistencyType")
+qqnorm(resid(REMLanova_EFF), main = "Residuals")
+```
+
+Create means for plots
+```{r Compute ACC Naive Thinking means for plots, include=FALSE}
+# Means for ConsistencyType
+GetMeans_ACC_ConsistencyType <- ACCdata %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(ConsistencyType) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(ACC), 
+                   n = length(ACC),
+                   sd = sd(ACC), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_ACC_ConsistencyType <- mutate (.data = GetMeans_ACC_ConsistencyType, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+
+# Means for Task
+GetMeans_ACC_Task <- ACCdata %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(Task) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(ACC), 
+                   n = length(ACC),
+                   sd = sd(ACC), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_ACC_Task <- mutate (.data = GetMeans_ACC_Task, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+
+# Means for ConsistencyType x Task Interaction
+GetMeans_ACC_Interaction <- ACCdata %>% # Create new data table
+  drop_na(ACC) %>% 
+  dplyr::group_by(Task, ConsistencyType) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(ACC), 
+                   n = length(ACC),
+                   sd = sd(ACC), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_ACC_Interaction <- mutate (.data = GetMeans_ACC_Interaction, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+```
+```{r Compute RTc Naive Thinking means for plots, include=FALSE}
+# Means for ConsistencyType
+GetMeans_RTc_ConsistencyType <- RTcdata %>% # Create new data table
+  drop_na(RTc) %>% 
+  dplyr::group_by(ConsistencyType) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(RTc), 
+                   n = length(RTc),
+                   sd = sd(RTc), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_RTc_ConsistencyType <- mutate (.data = GetMeans_RTc_ConsistencyType, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+
+# Means for Task
+GetMeans_RTc_Task <- RTcdata %>% # Create new data table
+  drop_na(RTc) %>% 
+  dplyr::group_by(Task) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(RTc), 
+                   n = length(RTc),
+                   sd = sd(RTc), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_RTc_Task <- mutate (.data = GetMeans_RTc_Task, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+
+# Means for ConsistencyType x Task Interaction
+GetMeans_RTc_Interaction <- RTcdata %>% # Create new data table
+  drop_na(RTc) %>% 
+  dplyr::group_by(Task, ConsistencyType) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(RTc), 
+                   n = length(RTc),
+                   sd = sd(RTc), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_RTc_Interaction <- mutate (.data = GetMeans_RTc_Interaction, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+```
+```{r Compute EFF Naive Thinking means for plots, include=FALSE}
+# Means for ConsistencyType
+GetMeans_EFF_ConsistencyType <- EFFdata %>% # Create new data table
+  drop_na(EFF) %>% 
+  dplyr::group_by(ConsistencyType) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(EFF), 
+                   n = length(EFF),
+                   sd = sd(EFF), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_EFF_ConsistencyType <- mutate (.data = GetMeans_EFF_ConsistencyType, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+
+# Means for Task
+GetMeans_EFF_Task <- EFFdata %>% # Create new data table
+  drop_na(EFF) %>% 
+  dplyr::group_by(Task) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(EFF), 
+                   n = length(EFF),
+                   sd = sd(EFF), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_EFF_Task <- mutate (.data = GetMeans_EFF_Task, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+
+# Means for ConsistencyType x Task Interaction
+GetMeans_EFF_Interaction <- EFFdata %>% # Create new data table
+  drop_na(EFF) %>% 
+  dplyr::group_by(Task, ConsistencyType) %>% # Group by ParticipantID and Version (so that version is carried through on the mean data file)
+  dplyr::summarise(mean = mean(EFF), 
+                   n = length(EFF),
+                   sd = sd(EFF), 
+                   se = sd / n,
+                   ci = se * qt(.975, n - 1) 
+                   )
+GetMeans_EFF_Interaction <- mutate (.data = GetMeans_EFF_Interaction, mean = mean * 100) %>% 
+  mutate (sd = sd * 100) %>% 
+    mutate (se = se * 100) %>% 
+    mutate (ci = ci * 100) 
+```
+
+Create plots
+```{r Plot ACC Naive Thinking , include=FALSE}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+png(filename = "Results_Images/Manuscript_Means_ACC.png", res=250, width=3000, height=1500)
+# Note the code for this figure was shared by Clemens Brunner, and is the same as that used for Figure 1 in Stricker et al. 2021 (https://doi.org/10.1016/j.cognition.2021.104789). Only minor adaptations were needed to plot our data.
+ggplot(data = ACCdata, mapping = aes(x = factor(Task, levels = c('Animism', 'Buoyancy', 'Statements')), 
+                                      y = ACC, 
+                                      col = ConsistencyType, 
+                                      fill = ConsistencyType, 
+                                      shape = ConsistencyType, 
+                                      group = ConsistencyType)) +
+  geom_jitter(alpha = 0.3, height = 0, width = 0.15, size = 1) +  # Add jitter to avoid overlapping points
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", width = 0.1, color = "black") +  # Error bars with bootstrapped confidence intervals
+  stat_summary(fun = mean, geom = "line") +  # Mean line
+  stat_summary(fun = mean, geom = "point", size = 1, stroke = .5, color = "black") +  # Points for the mean
+  scale_shape_manual(values = c(21, 23)) +  # Shapes for ConsistencyType
+  scale_color_manual(values = c("#00BFC4", "#F8766D")) +  # Colors for ConsistencyType
+  scale_fill_manual(values = c("#00BFC4", "#F8766D")) +  # Fill colors for ConsistencyType
+  scale_y_continuous() +  # Y-axis as numeric values (remove the scales::percent)
+  coord_cartesian(ylim = c(0, 3)) +  # Limit the y-axis to 0-3 for Efficiency
+  labs(x = "Task", y = "Efficiency") +  # Axis labels
+  facet_wrap(~ Site, scales = "free", labeller = labeller(Site = c("CN" = "China", "UK" = "United Kingdom"))) +  # Facet by Site with new labels
+  theme(text = element_text(size = 10), 
+        legend.title = element_blank(), 
+        axis.line = element_line(colour = "grey50"), 
+        axis.title.x = element_text(size = 10),  # Make Task label smaller
+        axis.title.y = element_text(size = 10),  # Make Efficiency label smaller
+        panel.background = element_blank(),  # Remove background
+        strip.background = element_blank(),  # Remove facet strip background
+        strip.text = element_text(size = 10))  # Smaller facet label text
+
+
+```
+```{r Plot RTc Naive Thinking , include=FALSE}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+png(filename = "Results_Images/Manuscript_Means_RTc.png", res=250, width=3000, height=1500)
+# Note the code for this figure was shared by Clemens Brunner, and is the same as that used for Figure 1 in Stricker et al. 2021 (https://doi.org/10.1016/j.cognition.2021.104789). Only minor adaptations were needed to plot our data.
+ggplot(data = RTcdata, mapping = aes(x = factor(Task, levels = c('Animism', 'Buoyancy', 'Statements')), 
+                                      y = RTc, 
+                                      col = ConsistencyType, 
+                                      fill = ConsistencyType, 
+                                      shape = ConsistencyType, 
+                                      group = ConsistencyType)) +
+  geom_jitter(alpha = 0.3, height = 0, width = 0.15, size = 1) +  # Add jitter to avoid overlapping points
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", width = 0.1, color = "black") +  # Error bars with bootstrapped confidence intervals
+  stat_summary(fun = mean, geom = "line") +  # Mean line
+  stat_summary(fun = mean, geom = "point", size = 1, stroke = .5, color = "black") +  # Points for the mean
+  scale_shape_manual(values = c(21, 23)) +  # Shapes for ConsistencyType
+  scale_color_manual(values = c("#00BFC4", "#F8766D")) +  # Colors for ConsistencyType
+  scale_fill_manual(values = c("#00BFC4", "#F8766D")) +  # Fill colors for ConsistencyType
+  scale_y_continuous() +  # Y-axis as numeric values (remove the scales::percent)
+  coord_cartesian(ylim = c(0, 3)) +  # Limit the y-axis to 0-3 for Efficiency
+  labs(x = "Task", y = "Efficiency") +  # Axis labels
+  facet_wrap(~ Site, scales = "free", labeller = labeller(Site = c("CN" = "China", "UK" = "United Kingdom"))) +  # Facet by Site with new labels
+  theme(text = element_text(size = 10), 
+        legend.title = element_blank(), 
+        axis.line = element_line(colour = "grey50"), 
+        axis.title.x = element_text(size = 10),  # Make Task label smaller
+        axis.title.y = element_text(size = 10),  # Make Efficiency label smaller
+        panel.background = element_blank(),  # Remove background
+        strip.background = element_blank(),  # Remove facet strip background
+        strip.text = element_text(size = 10))  # Smaller facet label text
+
+
+```
+```{r Plot EFF Naive Thinking , include=FALSE}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+png(filename = "Results_Images/Manuscript_Means_EFF.png", res=250, width=3000, height=1500)
+# Note the code for this figure was shared by Clemens Brunner, and is the same as that used for Figure 1 in Stricker et al. 2021 (https://doi.org/10.1016/j.cognition.2021.104789). Only minor adaptations were needed to plot our data.
+ggplot(data = EFFdata, mapping = aes(x = factor(Task, levels = c('Animism', 'Buoyancy', 'Statements')), 
+                                      y = EFF, 
+                                      col = ConsistencyType, 
+                                      fill = ConsistencyType, 
+                                      shape = ConsistencyType, 
+                                      group = ConsistencyType)) +
+  geom_jitter(alpha = 0.3, height = 0, width = 0.15, size = 1) +  # Add jitter to avoid overlapping points
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", width = 0.1, color = "black") +  # Error bars with bootstrapped confidence intervals
+  stat_summary(fun = mean, geom = "line") +  # Mean line
+  stat_summary(fun = mean, geom = "point", size = 1, stroke = .5, color = "black") +  # Points for the mean
+  scale_shape_manual(values = c(21, 23)) +  # Shapes for ConsistencyType
+  scale_color_manual(values = c("#00BFC4", "#F8766D")) +  # Colors for ConsistencyType
+  scale_fill_manual(values = c("#00BFC4", "#F8766D")) +  # Fill colors for ConsistencyType
+  scale_y_continuous() +  # Y-axis as numeric values (remove the scales::percent)
+  coord_cartesian(ylim = c(0, 3)) +  # Limit the y-axis to 0-3 for Efficiency
+  labs(x = "Task", y = "Efficiency") +  # Axis labels
+  facet_wrap(~ Site, scales = "free", labeller = labeller(Site = c("CN" = "China", "UK" = "United Kingdom"))) +  # Facet by Site with new labels
+  theme(text = element_text(size = 10), 
+        legend.title = element_blank(), 
+        axis.line = element_line(colour = "grey50"), 
+        axis.title.x = element_text(size = 10),  # Make Task label smaller
+        axis.title.y = element_text(size = 10),  # Make Efficiency label smaller
+        panel.background = element_blank(),  # Remove background
+        strip.background = element_blank(),  # Remove facet strip background
+        strip.text = element_text(size = 10))  # Smaller facet label text
+
+
+```
+
+

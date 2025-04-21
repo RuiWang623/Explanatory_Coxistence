@@ -1,0 +1,444 @@
+---
+title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy Data'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+The big data file downloaded from PsychoPy is not included on OSF because of potentially identifying participants. However, this R markdown script is included to show the procedures we used to get the data ready for analysis. CSV files saved here are used in the data analysis R markdown scripts.
+
+```{r Import Data, include=FALSE}
+# Load libraries
+library(tidyverse) # Load Tidyverse library - used for data wrangling
+library(readxl) # Load readxl library - used for data wrangling needed here to combine the excel files
+
+files = read.csv("Qualtrics_UKadults_ALL_files.csv")
+
+# Show the names of the files that have been uploaded. This step is good for checking that all expected files are uploading.
+```
+
+```{r Clean Data, include=FALSE}
+# Select the specific info that could be used in the manuscript, give the variables names that are more clear
+CleanFiles <- dplyr::rename (.data = files, Age = Q4) %>% 
+  dplyr::rename (Gender = Q5) %>% 
+  dplyr::rename (FirstLanguage = Q32)%>%
+  dplyr::rename (CurrentStudent = Q6) %>%
+  dplyr::rename (Nationality = Q33) %>%
+  dplyr::rename (CurrentEd = Q7) %>% 
+  dplyr::rename (CurrentEd_Info = Q7_4_TEXT) %>% 
+  dplyr::rename (HighestEducation = Q8) %>% 
+  dplyr::rename (HighestEd_Info = Q8_15_TEXT) %>%
+  dplyr::rename (UndergradSubject = Q9) %>%
+  dplyr::rename (CurrentSubject = Q10) %>%
+  dplyr::rename (OtherUndergrad = Q11) %>% 
+  dplyr::rename (OtherUndergradSubject = Q12) %>%
+  dplyr::rename (CurrentCountry = Q18) %>%
+  dplyr::rename (OtherUndergradCountry = Q20) %>%
+  dplyr::rename (MastersCountry = Q21) %>% 
+  dplyr::rename (MastersSubject = Q13) %>%
+  dplyr::rename (OtherMasters = Q25) %>%
+  dplyr::rename (OtherMastersSubject = Q28) %>%
+  dplyr::rename (OtherMastersCountry = Q27) %>%
+  dplyr::rename (DoctoralCountry = Q24) %>%
+  dplyr::rename (PreUniCountry_info_preprimary = Q15_5) %>%
+  dplyr::rename (PreUniCountry_info_primary = Q15_6) %>%
+  dplyr::rename (PreUniCountry_info_junior = Q15_7) %>%
+  dplyr::rename (PreUniCountry_info_high = Q15_8) %>%
+  dplyr::rename (HighestBiology = Q14_1) %>% 
+  dplyr::rename (HighestChemistry = Q14_2) %>% 
+  dplyr::rename (HighestPhysics = Q14_3) %>% 
+  dplyr::rename (HighestEngineering = Q14_4) %>% 
+  dplyr::rename (HighestMathematics = Q14_5) %>% 
+  dplyr::rename (HighestPsychology = Q14_6) %>% 
+  dplyr::rename (HighestOtherScience1 = Q14_7) %>% 
+  dplyr::rename (HighestOtherScience1_Info = Q14_7_TEXT) %>% 
+  dplyr::rename (HighestOtherScience2 = Q14_8) %>% 
+  dplyr::rename (HighestOtherScience2_Info = Q14_8_TEXT) %>% 
+  dplyr::rename (TaughtScience = Q16) %>%
+  dplyr::rename (TaughtScienceSubjectAge = Q17) %>%
+  dplyr::rename (PreUniCountry_info = Q34) 
+
+Qualtrics <- dplyr::select (.data = CleanFiles, ParticipantID, Experiment, Age, Gender, FirstLanguage,Nationality, CurrentEd,CurrentEd_Info,HighestEducation,HighestEd_Info,CurrentSubject,UndergradSubject,OtherUndergrad,OtherUndergradSubject,CurrentCountry,MastersCountry,MastersSubject,OtherMasters,OtherMastersSubject,OtherMastersCountry,DoctoralCountry,PreUniCountry_info_primary,PreUniCountry_info_preprimary,PreUniCountry_info_junior,PreUniCountry_info_high,HighestBiology,HighestChemistry,HighestPhysics,HighestEngineering,HighestMathematics,HighestPsychology,HighestOtherScience1,HighestOtherScience1_Info,TaughtScience, PreUniCountry_info, HighestOtherScience2, HighestOtherScience2_Info ) %>% 
+  arrange(ParticipantID)
+
+
+```
+
+```{r More Data Tidying}
+# In this section, there is further tidying - basically it included defining some of the existing variables as factors (to get frequency counts later), adding in Version information, coding the country/language backgrounds of the participants, and creating education scores.
+QualtricsTrials <- mutate (.data = Qualtrics, UKdata_Nationality = dplyr::case_when (
+                                      Nationality == "African British" ~ "UK", 
+                                      Nationality == "Asian British" ~ "UK",
+                                      Nationality == "asian pakistani" ~ "Other",
+                                      Nationality == "Black British" ~ "UK",
+                                      Nationality == "Bristish" ~ "UK",
+                                      Nationality == "British" ~ "UK",
+                                      Nationality == "british" ~ "UK",
+                                      Nationality == "BRITISH" ~ "UK",
+                                      Nationality == "British (currently living in NZ)" ~ "UK",
+                                      Nationality == "British (Northern Ireland)" ~ "UK",
+                                      Nationality == "Bristish" ~ "UK",
+                                      Nationality == "British American" ~ "UK",
+                                      Nationality == "British and Irish" ~ "UK",
+                                      Nationality == "british asian" ~ "UK",
+                                      Nationality == "British Asian" ~ "UK",
+                                      Nationality == "british brazillian" ~ "UK",
+                                      Nationality == "british pakistani" ~ "UK",
+                                      Nationality == "British Pakistani" ~ "UK",
+                                      Nationality == "british pakistani" ~ "UK",
+                                      Nationality == "British White" ~ "UK",
+                                      Nationality == "British-brazillian" ~ "UK",
+                                      Nationality == "english" ~ "UK",
+                                      Nationality == "English" ~ "UK",
+                                      Nationality == "Nigerian-British" ~ "UK",
+                                      Nationality == "Scottish" ~ "UK",
+                                      Nationality == "scottish" ~ "UK",
+                                      Nationality == "Scottish/British" ~ "UK",
+                                      Nationality == "South African-British" ~ "UK",
+                                      Nationality == "UK" ~ "UK",
+                                      Nationality == "White British" ~ "UK",
+                                      Nationality == "uk" ~ "UK",
+                                      Nationality == "Hungarian" ~ "Other",
+                                      Nationality == "UK/British" ~ "UK",
+                                      Nationality == "United Kingdom" ~ "UK",
+                                      Nationality == "Nigerian-British" ~ "Other",
+                                      Nationality == "welsh" ~ "UK",
+                                      Nationality == "Welsh" ~ "UK",
+                                      Nationality == "irish" ~ "Other",
+                                      Nationality == "white british" ~ "UK",
+                                      Nationality == "Ghanaian" ~ "Other",
+                                      Nationality == "Nigerian" ~ "Other",
+                                      Nationality == "Zimbabwean" ~ "Other",
+                                      Nationality == "White European" ~ "Other",
+                                      Nationality == "Northern Irish" ~ "Other"))%>%
+  mutate(Site = "UK")%>% 
+  mutate (UKdata_FirstLanguage = dplyr::case_when (
+                                      FirstLanguage == "British English" ~ "English", 
+                                      FirstLanguage == "english" ~ "English",
+                                      FirstLanguage == "English" ~ "English",
+                                      FirstLanguage == "ENGLISH" ~ "English",
+                                      FirstLanguage == "Other" ~ "Other",
+                                      FirstLanguage == "urdu" ~ "Other",
+                                      FirstLanguage == "Punjabi" ~ "Other",
+                                      FirstLanguage == "Hungarian" ~ "Other"))%>%
+  mutate (UKdata_PrePrimaryLocation = dplyr::case_when (
+                                      PreUniCountry_info_preprimary == "Bank's Lane" ~ "Other", 
+                                      PreUniCountry_info_preprimary == "College Gardens Nursery" ~ "Other",
+                                      PreUniCountry_info_preprimary == "Dubai" ~ "Other",
+                                      PreUniCountry_info_preprimary == "Zimbabwe" ~ "Other",
+                                      PreUniCountry_info_preprimary == "Ghana" ~ "Other",
+                                      PreUniCountry_info_preprimary == "UAE" ~ "Other",
+                                      PreUniCountry_info_preprimary == "Nigeria" ~ "Other",
+                                      PreUniCountry_info_preprimary == "NI" ~ "Other",
+                                      PreUniCountry_info_preprimary == "Saudi Arabia" ~ "Other",
+                                      PreUniCountry_info_preprimary == "Hungary" ~ "Other",
+                                      PreUniCountry_info_preprimary == "India" ~ "Other",
+                                      PreUniCountry_info_preprimary == "Milbourne Lodge Pre-Prep and Prep School" ~ "Other",
+                                      PreUniCountry_info_primary == "Wales" ~ "UK",
+                                      PreUniCountry_info_primary == "UK" ~ "UK",
+                                      PreUniCountry_info_primary == "uk" ~ "UK",
+                                      PreUniCountry_info_primary == "Scotland" ~ "UK",
+                                      PreUniCountry_info_primary == "United Kingdom" ~ "UK",
+                                      PreUniCountry_info_preprimary == "Englad" ~ "UK",
+                                      PreUniCountry_info_preprimary == "Enland" ~ "UK",
+                                      PreUniCountry_info_preprimary == "Northern Ireland" ~ "UK",
+                                       PreUniCountry_info_preprimary == "England" ~ "UK",
+                                       PreUniCountry_info_preprimary == "england" ~ "UK",
+                                       PreUniCountry_info_preprimary == "ENGLAND" ~ "UK",
+                                       PreUniCountry_info_preprimary == "England, UK" ~ "UK",
+                                       PreUniCountry_info_preprimary == "Enlgand" ~ "UK"))%>%
+                                      
+ mutate (UKdata_PrimaryLocation = dplyr::case_when (
+                                      PreUniCountry_info_primary == "Bank's Lane" ~ "Other", 
+                                      PreUniCountry_info_primary == "College Gardens Nursery" ~ "Other",
+                                      PreUniCountry_info_primary == "Zimbabwe" ~ "Other",
+                                      PreUniCountry_info_primary == "Dubai" ~ "Other",
+                                      PreUniCountry_info_primary == "Chingford C of E" ~ "Other",
+                                      PreUniCountry_info_primary == "Ghana" ~ "Other",
+                                      PreUniCountry_info_primary == "UAE" ~ "Other",
+                                      PreUniCountry_info_primary == "Hungary" ~ "Other",
+                                      PreUniCountry_info_primary == "India" ~ "Other",
+                                      PreUniCountry_info_primary == "Milbourne Lodge Pre-Prep and Prep School" ~ "Other",
+                                      PreUniCountry_info_primary == "Hong Kong & Nepal" ~ "Other",
+                                      PreUniCountry_info_primary == "NI" ~ "Other",
+                                      PreUniCountry_info_primary == "England/Germany" ~ "Other",
+                                      PreUniCountry_info_primary == "England, New Zealand" ~ "UK+Other",
+                                      PreUniCountry_info_primary == "Nigeria, United Kingdom" ~ "UK+Other",
+                                       PreUniCountry_info_primary == "England, Qatar" ~ "UK+Other",
+                                       PreUniCountry_info_primary == "Saudi Arabia + England" ~ "UK+Other",
+                                       PreUniCountry_info_primary == "England, Scotland" ~ "UK",
+                                       PreUniCountry_info_primary == "Scotland/England" ~ "UK",
+                                       PreUniCountry_info_primary == "England, UK" ~ "UK",
+                                       PreUniCountry_info_primary == "Englad" ~ "UK",
+                                      PreUniCountry_info_primary == "UK" ~ "UK",
+                                      PreUniCountry_info_primary == "uk" ~ "UK",
+                                      PreUniCountry_info_primary == "United Kingdom" ~ "UK",
+                                      PreUniCountry_info_primary == "Northern Ireland" ~ "UK",
+                                      PreUniCountry_info_primary == "Wales" ~ "UK",
+                                       PreUniCountry_info_primary == "England" ~ "UK",
+                                       PreUniCountry_info_primary == "Scotland" ~ "UK",
+                                       PreUniCountry_info_primary == "england" ~ "UK",
+                                       PreUniCountry_info_primary == "ENGLAND" ~ "UK",
+                                       PreUniCountry_info_primary == "England, UK" ~ "UK",
+                                       PreUniCountry_info_primary == "Enland" ~ "UK",
+                                       PreUniCountry_info_primary == "Enlgand" ~ "UK"))%>%
+ mutate (UKdata_JuniorLocation = dplyr::case_when (
+                                      PreUniCountry_info_junior == "n/a" ~ "NA", 
+                                      PreUniCountry_info_junior == "N/A" ~ "NA", 
+                                      PreUniCountry_info_junior == "Bank's Lane" ~ "Other", 
+                                      PreUniCountry_info_junior == "NI" ~ "Other", 
+                                      PreUniCountry_info_junior == "UAE" ~ "Other", 
+                                      PreUniCountry_info_junior == "Botswana" ~ "Other",
+                                      PreUniCountry_info_junior == "Pakistan" ~ "Other",
+                                      PreUniCountry_info_junior == "Brazil (Rio de Janeiro and S茫o Paulo)" ~ "Other",
+                                      PreUniCountry_info_junior == "Chingford Foundation School" ~ "Other",
+                                      PreUniCountry_info_junior == "Coombe Girls Secondary School" ~ "Other",
+                                      PreUniCountry_info_junior == "India" ~ "Other",
+                                      PreUniCountry_info_junior == "Milbourne Lodge Pre-Prep and Prep School" ~ "Other",
+                                      PreUniCountry_info_junior == "Dubai/England" ~ "Other+UK",
+                                      PreUniCountry_info_junior == "France" ~ "Other",
+                                      PreUniCountry_info_junior == "Ghana" ~ "Other",
+                                      PreUniCountry_info_junior == "New Zealand" ~ "Other",
+                                       PreUniCountry_info_junior == "Hungary" ~ "Other",
+                                       PreUniCountry_info_junior == "India" ~ "Other",
+                                       PreUniCountry_info_junior == "England, Scotland" ~ "UK",
+                                       PreUniCountry_info_junior == "England, UK" ~ "UK",
+                                       PreUniCountry_info_junior == "Englad" ~ "UK",
+                                      PreUniCountry_info_junior == "Scotland" ~ "UK",
+                                      PreUniCountry_info_junior == "United Kingdom" ~ "UK",
+                                      PreUniCountry_info_junior == "UK" ~ "UK",
+                                      PreUniCountry_info_junior == "uk" ~ "UK",
+                                       PreUniCountry_info_junior == "England" ~ "UK",
+                                      PreUniCountry_info_junior == "Wales" ~ "UK",
+                                       PreUniCountry_info_junior == "england" ~ "UK",
+                                      PreUniCountry_info_junior == "Northern Ireland" ~ "UK",
+                                       PreUniCountry_info_junior == "ENGLAND" ~ "UK",
+                                       PreUniCountry_info_junior == "England, UK" ~ "UK",
+                                       PreUniCountry_info_junior == "Enland" ~ "UK",
+                                       PreUniCountry_info_junior == "Enlgand" ~ "UK"))%>%
+mutate (UKdata_HighLocation = dplyr::case_when (
+                                      PreUniCountry_info_high == "Coombe Girls Secondary School" ~ "Other", 
+                                      PreUniCountry_info_high == "Brazil (Rio de Janeiro and S茫o Paulo)" ~ "Other",
+                                      PreUniCountry_info_high == "Highams park sixthform" ~ "Other",
+                                      PreUniCountry_info_high == "Ghana" ~ "Other",
+                                      PreUniCountry_info_high == "UAE" ~ "Other",
+                                      PreUniCountry_info_high == "Hungary" ~ "Other",
+                                      PreUniCountry_info_high == "Pakistan" ~ "Other",
+                                      PreUniCountry_info_high == "India" ~ "Other",
+                                      PreUniCountry_info_high == "Milbourne Lodge Pre-Prep and Prep School" ~ "Other",
+                                      PreUniCountry_info_high == "Hong Kong & Nepal" ~ "Other",
+                                      PreUniCountry_info_high == "England/Germany" ~ "Other",
+                                      PreUniCountry_info_high == "Dubai/England" ~ "UK+Other",
+                                       PreUniCountry_info_high == "England, Qatar" ~ "UK+Other",
+                                       PreUniCountry_info_high == "England, Scotland" ~ "UK+Other",
+                                       PreUniCountry_info_high == "United Kingdom" ~ "UK",
+                                      PreUniCountry_info_high == "Uk" ~ "UK",
+                                      PreUniCountry_info_high == "Northern Ireland" ~ "UK",
+                                      PreUniCountry_info_high == "Wales" ~ "UK",
+                                      PreUniCountry_info_high == "uk" ~ "UK",
+                                      PreUniCountry_info_high == "Scotland" ~ "UK",
+                                      PreUniCountry_info_high == "England, UK" ~ "UK",
+                                       PreUniCountry_info_high == "England, UK" ~ "UK",
+                                       PreUniCountry_info_high == "Englad" ~ "UK",
+                                       PreUniCountry_info_high == "England" ~ "UK",
+                                       PreUniCountry_info_high == "england" ~ "UK",
+                                      PreUniCountry_info_high == "UK" ~ "UK",
+                                       PreUniCountry_info_high == "ENGLAND" ~ "UK",
+                                       PreUniCountry_info_high == "England, UK" ~ "UK",
+                                       PreUniCountry_info_high == "Enland" ~ "UK",
+                                       PreUniCountry_info_high == "Enlgand" ~ "UK"))%>%
+ mutate (UKdata_CurrentCountry = dplyr::case_when (
+                                      CurrentCountry == "Bulgaria" ~ "Other", 
+                                      CurrentCountry == "bulgaria, plovdiv" ~ "Other",
+                                      CurrentCountry == "Derby" ~ "Other",
+                                       CurrentCountry =="United States of America" ~ "Other",
+                                      CurrentCountry == "Ghana" ~ "Other",
+                                      CurrentCountry == "Hungary" ~ "Other",
+                                      CurrentCountry == "Greenwich" ~ "Other",
+                                      CurrentCountry == "Milbourne Lodge Pre-Prep and Prep School" ~ "Other",
+                                      CurrentCountry == "Hong Kong & Nepal" ~ "Other",
+                                      CurrentCountry == "England/Germany" ~ "Other",
+                                      CurrentCountry == "Dual University PhD Program: United Kingdom & Australia" ~ "UK+Other",
+                                      CurrentCountry == "England, Qatar" ~ "UK+Other",
+                                      CurrentCountry == "Scotland" ~ "UK+Other",
+                                      CurrentCountry == "Greenwich" ~ "UK+Other",
+                                      CurrentCountry == "England - United Kingdom" ~ "UK",
+                                      CurrentCountry == "England, UK" ~ "UK",
+                                      CurrentCountry == "united kingdom" ~ "UK",
+                                      CurrentCountry == "Englad" ~ "UK",
+                                      CurrentCountry == "England" ~ "UK",
+                                      CurrentCountry == "england" ~ "UK",
+                                      CurrentCountry == "ENGLAND" ~ "UK",
+                                      CurrentCountry == "England, UK" ~ "UK",
+                                      CurrentCountry == "Enland" ~ "UK",
+                                      CurrentCountry == "Engand" ~ "UK",
+                                      CurrentCountry == "English" ~ "UK",
+                                      CurrentCountry == "scotland" ~ "UK",
+                                      CurrentCountry == "UK" ~ "UK",
+                                      CurrentCountry == "UK(Wales)" ~ "UK",
+                                       CurrentCountry =="Wales, United Kingdom" ~ "UK",
+                                      CurrentCountry == "United Kingdom" ~ "UK",
+                                      CurrentCountry == "England - United Kingdom" ~ "UK",
+                                      CurrentCountry == "The UK" ~ "UK",
+                                      CurrentCountry == "Wales" ~ "UK",
+                                      CurrentCountry == "wales" ~ "UK",
+                                      CurrentCountry == "Royal College of Music" ~ "UK",
+                                      CurrentCountry == "uk" ~ "UK",
+                                      CurrentCountry == "Enlgand" ~ "UK"))%>% 
+  
+  # Add new column for a continuous score for highest education, included all potential provided responses (to show coding scheme) and only the specific instances of other provided by participants
+
+mutate (CurrentEdScore = dplyr::case_when  (CurrentEd == "NA" ~ 0,
+                                            CurrentEd == "Undergraduate" ~ 16,
+                                            CurrentEd == "PGCE" ~ 18,
+                                            CurrentEd == "Some masters level study" ~ 18,
+                                            CurrentEd == "Masters" ~ 20,
+                                            CurrentEd == "Doctorate" ~ 24)) %>%
+  
+mutate (CurrentEdScore_Info = dplyr::case_when (CurrentEd_Info == "A levels (2nd year)" ~ 10,
+                                            CurrentEd_Info == "A levels" ~ 14,
+                                            CurrentEd_Info == "A level" ~ 14,
+                                            CurrentEd_Info == "BTEC Level 4" ~ 14,
+                                            CurrentEd_Info == "Homeschool" ~ 14,
+                                            CurrentEd_Info == "certificate" ~ 14,
+                                            CurrentEd_Info == "Legal Practice Course (LPC)" ~ 14,
+                                            CurrentEd_Info == "Bachelors" ~ 16,
+                                            CurrentEd_Info == "Degree Apprenticeship" ~ 16,
+                                            CurrentEd_Info == "College" ~ 16,
+                                            CurrentEd_Info == "College (BTEC)" ~ 16,
+                                            CurrentEd_Info == "Uk Foundation Diploma" ~ 16,
+                                            CurrentEd_Info == "College/Adult Learning" ~ 16,
+                                            CurrentEd_Info == "Bachelors" ~ 16)) %>%
+mutate (HighestEdScore = dplyr::case_when (HighestEducation == "NA" ~ 0, 
+                                             HighestEducation == "GCSE / O-Levels" ~ 10,
+                                             HighestEducation == "High School" ~ 12,
+                                             HighestEducation == "A-Levels" ~ 14,
+                                             HighestEducation == "Bachelors degree" ~ 16,
+                                             HighestEducation == "PGCE" ~ 18,
+                                             HighestEducation == "Masters degree" ~ 20,
+                                             HighestEducation == "Some doctoral level study" ~ 22,
+                                             HighestEducation == "Doctoral degree" ~ 24,
+                                             HighestEducation == "Some undergraduate study"~ 14 )) %>% 
+  
+mutate (HighestEdScore_Info = dplyr::case_when (HighestEd_Info == "Professional Qualifications" ~ 14)) %>% 
+  
+# Add new column for a continuous score for current education level (this will only be answered by those who say they are currently students)
+
+ unite (EducationScore, HighestEdScore, CurrentEdScore, HighestEdScore_Info,CurrentEdScore_Info, remove = FALSE, na.rm = TRUE) %>% 
+# When checking the data, there were either data for Highest Education or Current Education (based on the structure of the survey), this new variable combines the continuous scores into one variable that could be used when checking whether education level impacted the results.
+  mutate  (HighestBiologyScore = dplyr::case_when (HighestBiology == "None" ~ 0, 
+                                             HighestBiology == "Secondary / Middle School" ~ 8,
+                                             HighestBiology == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestBiology == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestBiology == "completed A-Levels" ~ 14,
+                                             HighestBiology == "some undergraduate" ~ 14,
+                                             HighestBiology == "completed bachelors degree" ~ 16,
+                                             HighestBiology == "some masters" ~ 18,
+                                             HighestBiology == "completed masters" ~ 20,
+                                             HighestBiology == "some doctoral" ~ 22,
+                                             HighestBiology == "completed doctoral" ~ 24,
+                                             HighestBiology == "prefer not to say" ~ 0)) %>%
+
+   mutate  (HighestChemistryScore = dplyr::case_when (HighestChemistry == "None" ~ 0, 
+                                             HighestChemistry == "Secondary / Middle School" ~ 8,
+                                             HighestChemistry == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestChemistry == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestChemistry == "completed A-Levels" ~ 14,
+                                             HighestChemistry == "some undergraduate" ~ 14,
+                                             HighestChemistry == "completed bachelors degree" ~ 16,
+                                             HighestChemistry == "some masters" ~ 18,
+                                             HighestChemistry == "completed masters" ~ 20,
+                                             HighestChemistry == "some doctoral" ~ 22,
+                                             HighestChemistry == "completed doctoral" ~ 24,
+                                             HighestChemistry == "prefer not to say" ~ 0)) %>%
+
+ mutate  (HighestPhysicsScore = dplyr::case_when (HighestPhysics == "None" ~ 0, 
+                                             HighestPhysics == "Secondary / Middle School" ~ 8,
+                                             HighestPhysics == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestPhysics == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestPhysics == "completed A-Levels" ~ 14,
+                                             HighestPhysics == "some undergraduate" ~ 14,
+                                             HighestPhysics == "completed bachelors degree" ~ 16,
+                                             HighestPhysics == "some masters" ~ 18,
+                                             HighestPhysics == "completed masters" ~ 20,
+                                             HighestPhysics == "some doctoral" ~ 22,
+                                             HighestPhysics == "completed doctoral" ~ 24,
+                                             HighestPhysics == "prefer not to say" ~ 0)) %>%
+
+  mutate  (HighestEngineeringScore = dplyr::case_when (HighestEngineering == "None" ~ 0, 
+                                             HighestEngineering == "Secondary / Middle School" ~ 8,
+                                             HighestEngineering == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestEngineering == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestEngineering == "completed A-Levels" ~ 14,
+                                             HighestEngineering == "some undergraduate" ~ 14,
+                                             HighestEngineering == "completed bachelors degree" ~ 16,
+                                             HighestEngineering == "some masters" ~ 18,
+                                             HighestEngineering == "completed masters" ~ 20,
+                                             HighestEngineering == "some doctoral" ~ 22,
+                                             HighestEngineering == "completed doctoral" ~ 24,
+                                             HighestEngineering == "prefer not to say" ~ 0)) %>%
+
+ mutate  (HighestMathematicsScore = dplyr::case_when (HighestMathematics == "None" ~ 0, 
+                                             HighestMathematics == "Secondary / Middle School" ~ 8,
+                                             HighestMathematics == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestMathematics == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestMathematics == "completed A-Levels" ~ 14,
+                                             HighestMathematics == "some undergraduate" ~ 14,
+                                             HighestMathematics == "completed bachelors degree" ~ 16,
+                                             HighestMathematics == "some masters" ~ 18,
+                                             HighestMathematics == "completed masters" ~ 20,
+                                             HighestMathematics == "some doctoral" ~ 22,
+                                             HighestMathematics == "completed doctoral" ~ 24,
+                                             HighestMathematics == "prefer not to say" ~ 0)) %>%
+
+mutate  (HighestPsychologyScore = dplyr::case_when (HighestPsychology == "None" ~ 0, 
+                                             HighestPsychology == "Secondary / Middle School" ~ 8,
+                                             HighestPsychology == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestPsychology == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestPsychology == "completed A-Levels" ~ 14,
+                                             HighestPsychology == "some undergraduate" ~ 14,
+                                             HighestPsychology == "completed bachelors degree" ~ 16,
+                                             HighestPsychology == "some masters" ~ 18,
+                                             HighestPsychology == "completed masters" ~ 20,
+                                             HighestPsychology == "some doctoral" ~ 22,
+                                             HighestPsychology == "completed doctoral" ~ 24,
+                                             HighestPsychology == "prefer not to say" ~ 0)) %>%
+  
+
+mutate  (HighestOtherScienceScore1 = dplyr::case_when (HighestOtherScience1 == "None" ~ 0, 
+                                                       is.na(HighestOtherScience1) ~ 0, 
+                                             HighestOtherScience1 == "Secondary / Middle School" ~ 8,
+                                             HighestOtherScience1 == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestOtherScience1 == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestOtherScience1 == "completed A-Levels" ~ 14,
+                                             HighestOtherScience1 == "some undergraduate" ~ 14,
+                                             HighestOtherScience1 == "completed bachelors degree" ~ 16,
+                                             HighestOtherScience1 == "some masters" ~ 18,
+                                             HighestOtherScience1 == "completed masters" ~ 20,
+                                             HighestOtherScience1 == "some doctoral" ~ 22,
+                                             HighestOtherScience1 == "completed doctoral" ~ 24,
+                                             HighestOtherScience1 == "prefer not to say" ~ 0 ))%>%
+mutate  (HighestOtherScienceScore2 = dplyr::case_when (HighestOtherScience2 == "None" ~ 0, 
+                                                       is.na(HighestOtherScience2) ~ 0, 
+                                             HighestOtherScience2 == "Secondary / Middle School" ~ 8,
+                                             HighestOtherScience2 == "GCSE / O-Levels / Junior Cert" ~ 10,
+                                             HighestOtherScience2 == "some A-Levels / Leaving Cert" ~ 10, 
+                                             HighestOtherScience2 == "completed A-Levels" ~ 14,
+                                             HighestOtherScience2 == "some undergraduate" ~ 14,
+                                             HighestOtherScience2 == "completed bachelors degree" ~ 16,
+                                             HighestOtherScience2 == "some masters" ~ 18,
+                                             HighestOtherScience2 == "completed masters" ~ 20,
+                                             HighestOtherScience2 == "some doctoral" ~ 22,
+                                             HighestOtherScience2 == "completed doctoral" ~ 24,
+                                             HighestOtherScience2 == "prefer not to say" ~ 0 ))
+
+```
+
+```{r Save file}
+# Select the specific variables to be used later
+DEMOdata <- dplyr::select(.data = QualtricsTrials, ParticipantID, Age, Gender, UKdata_FirstLanguage, Site, EducationScore, HighestBiologyScore, HighestChemistryScore, HighestPhysicsScore, HighestEngineeringScore, HighestMathematicsScore, HighestPsychologyScore, HighestOtherScienceScore1, HighestOtherScienceScore2) %>% 
+  
+mutate (STEMscore = HighestBiologyScore + HighestPhysicsScore) #Since our explanatory coexistence task includes both biological and physical knowledge, we create a STEM score here, which will be used later in the analysis as a variable representing the level of biological and physical education.
+
+#save as csv file
+write.csv(DEMOdata, "Qualtrics_UK.csv", row.names = FALSE) # Save as a CSV file that can be combined with the PsychoPy CSV files later
+```

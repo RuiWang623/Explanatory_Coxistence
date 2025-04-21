@@ -1,0 +1,188 @@
+---
+title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy China Data - Corsi Block'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+The big data file downloaded from PsychoPy is not included on OSF because of potentially identifying participants. However, this R markdown script is included to show the procedures we used to get the data ready for analysis. CSV files saved here are used in the data analysis R markdown scripts.
+
+```{r setup, CorsiBlock Pre-tidy}
+library(stringr)  # For string manipulation functions (e.g., pattern matching, replacement)
+library(readr)    # For reading and writing data efficiently (e.g., read_csv, write_csv)
+library(plyr)     # For data manipulation and transformation (e.g., ddply, join)
+
+```
+
+
+```{r Data wrangling}
+files = list.files(path = "ChinaDataRaw", pattern = "*.csv", full.names = TRUE)
+
+data_clean_combn <- data.frame()
+
+for (i in 1:length(files)) {
+  
+  d <- data.frame(read_csv(files[i], guess_max = 6000))
+
+  # Start cleaning for forward trials
+  # Select columns for later data wrangling:
+  # - 90: choose_num (what participants pressed)
+  # - 97: show_num (original order set by the program)
+  # - 103: cb_choose_mouse.corr (whether participants pressed correctly for each individual press; 0 = incorrect, 1 = correct, -1 = pressed more than the set sequence)
+  # - 109: cb_choose_mouse.time (response time for each individual press)
+  # - cb_level: the number of blocks for each trial
+  # - cb_instr: the column for the instruction image (the column position is the same for all files)
+
+  # The logic is that we need to determine the position of the start and end blocks in each trial. There are 16 trials in total, so we need to find a way to locate the start and end blocks.
+
+  # Locate the start block (treat the positions of blocks as a vector):
+  # 1. For the first trial, the start block location is the position of the "cb_instr" + 1.
+  # 2. For the remaining trials, the start block location is the "cb_level" position of the previous trial - 1.
+
+  # Locate the end block:
+  # 1. For trials 1 to 15, the end block location is the "cb_level" position.
+  # 2. For the 16th trial, "cb_level" is missing, so we customize the location of the end block as the start block location + 30 (because participants will never press 30 times, adding 30 ensures we cover the entire trial).
+
+  colnames(d)[10] = "ParticipantID"
+
+  cb_forwardcolumn_for_wrangling <- d[, c("ParticipantID", "date", "expName", "psychopyVersion", "OS", "frameRate", "show_num", "choose_num", "cb_choose_mouse.corr", "cb_choose_mouse.time", "cb_level", "cb_instr")]
+
+  cb_level_pos <- which(!is.na(cb_forwardcolumn_for_wrangling$cb_level))
+  pos_instr_end <- max(which(!is.na(cb_forwardcolumn_for_wrangling$cb_instr)))
+
+  cb_forward_trial_start <- numeric(16)
+  for (i in 1:(length(cb_level_pos) + 1)) {
+    if (i == 1) {
+      cb_forward_trial_start[i] <- pos_instr_end + 1
+    } else {
+      cb_forward_trial_start[i] <- cb_level_pos[i - 1] + 1
+    }
+  }
+
+  cb_forward_trial_end <- c(cb_level_pos, cb_forward_trial_start[length(cb_forward_trial_start)] + 30)
+
+  cb_forward_results <- data.frame()
+  for (i in 1:16) {
+
+    # Setting sequence
+    cb_forward_shownum <- cb_forwardcolumn_for_wrangling$show_num[cb_forward_trial_start[i]:cb_forward_trial_end[i]]
+    cb_forward_results[i, 1] <- paste(cb_forward_shownum[!is.na(cb_forward_shownum)], collapse = "_")  # column 1
+
+    # Choose sequence
+    cb_forward_choosenum <- cb_forwardcolumn_for_wrangling$choose_num[cb_forward_trial_start[i]:cb_forward_trial_end[i]]
+    cb_forward_results[i, 2] <- paste(cb_forward_choosenum[!is.na(cb_forward_choosenum)], collapse = "_")  # column 2
+
+    # Calculate total reaction time
+    cb_forward_shownum <- cb_forwardcolumn_for_wrangling$cb_choose_mouse.time[cb_forward_trial_start[i]:cb_forward_trial_end[i]]
+    cb_forward_shownum <- cb_forward_shownum[!is.na(cb_forward_shownum)]  # Remove NA values
+    cb_forward_shownum <- cb_forward_shownum[-length(cb_forward_shownum)]  # Remove the last press (done button)
+    cb_forward_results[i, 3] <- sum(cb_forward_shownum)  # Total reaction time, column 3
+
+    # Add correct pressing number
+    cb_forward_shownum <- cb_forwardcolumn_for_wrangling$cb_choose_mouse.corr[cb_forward_trial_start[i]:cb_forward_trial_end[i]]
+    cb_forward_shownum <- cb_forward_shownum[!is.na(cb_forward_shownum)]
+    cb_forward_shownum <- cb_forward_shownum[cb_forward_shownum == 1]  # Correct presses
+    cb_forward_results[i, 4] <- length(cb_forward_shownum)  # Column 4
+
+    # Add total pressing number
+    cb_forward_results[i, 5] <- length(cb_forward_choosenum[!is.na(cb_forward_choosenum)])  # Column 5
+
+    # Add forward/backward version
+    cb_forward_results[i, 6] <- "forward"
+
+    # Add participant ID, date, experiment name, psychopy version, OS, and framerate
+    cb_forward_results[i, 7] <- cb_forwardcolumn_for_wrangling[1, 1]  # Participant ID
+    cb_forward_results[i, 8] <- cb_forwardcolumn_for_wrangling[1, 2]  # Date
+    cb_forward_results[i, 9] <- cb_forwardcolumn_for_wrangling[1, 3]  # Experiment name
+    cb_forward_results[i, 10] <- cb_forwardcolumn_for_wrangling[1, 4]  # Psychopy version
+    cb_forward_results[i, 11] <- cb_forwardcolumn_for_wrangling[1, 5]  # OS
+    cb_forward_results[i, 12] <- cb_forwardcolumn_for_wrangling[1, 6]  # Framerate
+
+    cb_forward_shownum <- cb_forwardcolumn_for_wrangling$show_num[cb_forward_trial_start[i]:cb_forward_trial_end[i]]
+    cb_forward_results[i, 13] <- paste(cb_forward_shownum[!is.na(cb_forward_shownum)], collapse = "_")
+  }
+
+  # Start cleaning for backward trials
+  # Select columns for later data wrangling:
+  # - 138: reverse_choose_num (what participants pressed)
+  # - 132: reverse_show_num (original order set by the program)
+  # - 139: reverse_cb_choose_mouse.corr (whether participants pressed correctly for each individual press; 0 = incorrect, 1 = correct, -1 = pressed more than the set sequence)
+  # - 145: cb_choose_mouse.time (response time for each individual press)
+  # - reversed_cb_level: the number of blocks for each trial
+  # - reversed_cb_instr: the column for the instruction image (the column position is the same for all files)
+  
+  cb_backwardcolumn_for_wrangling <- d[, c("ParticipantID", "date", "expName", "psychopyVersion", "OS", "frameRate", "reversed_show_num", "reversed_choose_num", "reversed_cb_choose_mouse.corr", "reversed_cb_choose_mouse.time", "reversed_cb_instr", "reversed_cb_level")]
+
+  reversed_cb_level_pos <- which(!is.na(cb_backwardcolumn_for_wrangling$reversed_cb_level))
+  reversed_pos_instr_end <- max(which(!is.na(cb_backwardcolumn_for_wrangling$reversed_cb_instr)))
+
+  cb_backward_trial_start <- numeric(16)
+  for (i in 1:(length(reversed_cb_level_pos) + 1)) {
+    if (i == 1) {
+      cb_backward_trial_start[i] <- reversed_pos_instr_end + 1
+    } else {
+      cb_backward_trial_start[i] <- reversed_cb_level_pos[i - 1] + 1
+    }
+  }
+
+  cb_backward_trial_end <- c(reversed_cb_level_pos, cb_backward_trial_start[length(cb_backward_trial_start)] + 30)
+
+  cb_backward_results <- data.frame()
+  for (i in 1:16) {
+
+    # Setting sequence
+    cb_backward_shownum <- cb_backwardcolumn_for_wrangling$reversed_show_num[cb_backward_trial_start[i]:cb_backward_trial_end[i]]
+    cb_backward_results[i, 1] <- paste(cb_backward_shownum[!is.na(cb_backward_shownum)], collapse = "_")  # Column 1
+
+    # Choose sequence
+    cb_backward_choosenum <- cb_backwardcolumn_for_wrangling$reversed_choose_num[cb_backward_trial_start[i]:cb_backward_trial_end[i]]
+    cb_backward_results[i, 2] <- paste(cb_backward_choosenum[!is.na(cb_backward_choosenum)], collapse = "_")  # Column 2
+
+    # Calculate total reaction time
+    cb_backward_shownum <- cb_backwardcolumn_for_wrangling$reversed_cb_choose_mouse.time[cb_backward_trial_start[i]:cb_backward_trial_end[i]]
+    cb_backward_shownum <- cb_backward_shownum[!is.na(cb_backward_shownum)]
+    cb_backward_shownum <- cb_backward_shownum[-length(cb_backward_shownum)]  # Remove the last press (done button)
+    cb_backward_results[i, 3] <- sum(cb_backward_shownum)
+
+    # Add correct pressing number
+    cb_backward_shownum <- cb_backwardcolumn_for_wrangling$reversed_cb_choose_mouse.corr[cb_backward_trial_start[i]:cb_backward_trial_end[i]]
+    cb_backward_shownum <- cb_backward_shownum[!is.na(cb_backward_shownum)]
+    cb_backward_shownum <- cb_backward_shownum[cb_backward_shownum == 1]  # Correct presses
+    cb_backward_results[i, 4] <- length(cb_backward_shownum)
+
+    # Add total pressing number
+    cb_backward_results[i, 5] <- length(cb_backward_choosenum[!is.na(cb_backward_choosenum)])
+
+    # Add forward/backward version
+    cb_backward_results[i, 6] <- "backward"
+
+    # Add participant ID, date, experiment name, psychopy version, OS, and framerate
+    cb_backward_results[i, 7] <- cb_backwardcolumn_for_wrangling[1, 1]  # Participant ID
+    cb_backward_results[i, 8] <- cb_backwardcolumn_for_wrangling[1, 2]  # Date
+    cb_backward_results[i, 9] <- cb_backwardcolumn_for_wrangling[1, 3]  # Experiment name
+    cb_backward_results[i, 10] <- cb_backwardcolumn_for_wrangling[1, 4]  # Psychopy version
+    cb_backward_results[i, 11] <- cb_backwardcolumn_for_wrangling[1, 5]  # OS
+    cb_backward_results[i, 12] <- cb_backwardcolumn_for_wrangling[1, 6]  # Framerate
+
+    # Add column of correct answers. Backward trials are recorded in reverse order
+    cb_backward_shownum <- cb_backwardcolumn_for_wrangling$reversed_show_num[cb_backward_trial_start[i]:cb_backward_trial_end[i]]
+    x <- cb_backward_shownum[!is.na(cb_backward_shownum)]
+    cb_backward_results[i, 13] <- paste(x[length(x):1], collapse = "_")
+  }
+
+  # Combine the forward and backward results
+  data_cleaning <- rbind.fill(cb_forward_results, cb_backward_results)
+
+  data_clean_combn <- rbind.fill(data_clean_combn, data_cleaning)
+}
+
+# The variables retained for later analysis include "total RTs" and "correct pressing number"
+
+b <- data_clean_combn
+```
+
+
+```{r Save file}
+write.csv(data_clean_combn,"ALL_CorsiBlock_CN.csv",row.names=F)
+```
+
+

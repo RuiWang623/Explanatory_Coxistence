@@ -1,0 +1,166 @@
+---
+title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy Descriptive & Multigroup Analysis'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Note for abbreviations: SS = Stop Signal task; FT = Flanker task; FM = Figure Matching task; CB = Corsi Block task; MRIB = Matrix Reasoning task; AT = Animism task; BT = Buoyancy task; RS = Science Statement task; ACC = accuracy; RTc = Response Time for correct trials; EFF = efficiency
+
+Packages and load data
+```{r load data}
+library(tidyverse) # For data wrangling
+library(psych) # for key psychology stats - correlation, regression
+library(lavaan) # For CFA/MI/SEM
+library(OpenMx) # For SEM
+library(car) # for Anova
+library(ggplot2) # draw plot
+
+# Combine the data
+StopSignal_CN <- read.csv("Means_StopSignal_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+Flanker_CN <- read.csv("Means_Flanker_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+FigureMatching_CN <- read.csv("Means_Figurematching_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+Animism_CN <- read.csv("Means_Animism_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+Statements_CN <- read.csv("Means_Statements_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+Corsi_CN <- read.csv("Means_Corsi_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+Buoyancy_CN <- read.csv("Means_Buoyancy_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+Matrix_CN <- read.csv("Means_MRIB_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+Demographics_CN <- read.csv("Qualtrics_CN.csv", header = TRUE, na.strings=c(""," ","NA"))
+CNdata <- Reduce(full_join, list (Demographics_CN, StopSignal_CN, Flanker_CN, FigureMatching_CN, Animism_CN, Statements_CN, Corsi_CN, Buoyancy_CN, Matrix_CN))
+write.csv(CNdata, "CNdata.csv", row.names = FALSE)
+
+StopSignal_UK <- read.csv("Means_StopSignal_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+Flanker_UK <- read.csv("Means_Flanker_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+FigureMatching_UK <- read.csv("Means_Figurematching_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+Animism_UK <- read.csv("Means_Animism_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+Statements_UK <- read.csv("Means_Statements_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+Corsi_UK <- read.csv("Means_Corsi_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+Buoyancy_UK <- read.csv("Means_Buoyancy_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+Matrix_UK <- read.csv("Means_MRIB_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+Demographics_UK <- read.csv("Qualtrics_UK.csv", header = TRUE, na.strings=c(""," ","NA"))
+UKdata <- Reduce(full_join, list (Demographics_UK, StopSignal_UK, Flanker_UK, FigureMatching_UK, Animism_UK, Statements_UK, Corsi_UK, Buoyancy_UK, Matrix_UK))
+write.csv(UKdata, "UKdata.csv", row.names = FALSE)
+
+# Find the common column names between CNdata and UKdata
+common_cols <- intersect(names(CNdata), names(UKdata))
+
+# Subset both data frames to only include the common columns and use rbind to combine them
+ALLdata <- rbind(
+  CNdata[, common_cols, drop = FALSE],
+  UKdata[, common_cols, drop = FALSE]
+)
+
+```
+
+Descriptive Statistics
+```{r Descriptive Stats}
+# Descriptive Stats about sciecne edu level and tasks 
+describeBy(UKdata)
+describeBy(CNdata)
+describeBy(ALLdata)
+
+table(UKdata$Gender)
+table(CNdata$Gender)
+```
+
+Multigroup Analysis
+```{r Rename colums}
+EFFdata <- dplyr::rename (ALLdata, Statements = RS_EFF) %>% 
+  dplyr::rename (STEMscores =  STEMscore) %>% 
+  dplyr::rename (Animism = AT_EFF) %>% 
+  dplyr::rename (Figures = FM_EFF) %>%
+  dplyr::rename (Flanker = FT_EFF) %>% 
+  dplyr::rename (StopSignal = SS_EFF)%>% 
+  dplyr::rename (Corsi = CB_EFF_backward) %>% 
+  dplyr::rename (NonVerbal_IQ = MRIB_EFF) %>% 
+  dplyr::rename (Bouyancy = BT_EFF)
+
+OverallEFFdata_ConIncon <- dplyr::rename (ALLdata, ConsistentStatements = RS_EFF_Consistent) %>% 
+  dplyr::rename (STEMscores = STEMscore) %>% 
+  dplyr::rename (ConsistentAnimism = AT_EFF_Consistent) %>% 
+  dplyr::rename (Figures = FM_EFF) %>% 
+  dplyr::rename (Flanker = FT_EFF) %>% 
+  dplyr::rename (StopSignal = SS_EFF) %>% 
+  dplyr::rename (Corsi = CB_EFF_backward) %>% 
+  dplyr::rename (NonVerbal_IQ = MRIB_EFF) %>% 
+  dplyr::rename (ConsistentBouyancy = BT_EFF_Consistent)%>% 
+  dplyr::rename (InconsistentStatements = RS_EFF_Inconsistent) %>% 
+  dplyr::rename (InconsistentAnimism = AT_EFF_Inconsistent) %>% 
+  dplyr::rename (InconsistentBouyancy = BT_EFF_Inconsistent)
+
+```
+```{r Path_model Overall Full EFF Data}
+PathModel <- '
+Statements ~ STEMscores + NonVerbal_IQ + StopSignal + Flanker + Figures + Corsi
+Animism ~ STEMscores + NonVerbal_IQ + StopSignal + Flanker + Figures + Corsi
+Bouyancy ~ STEMscores + NonVerbal_IQ+ StopSignal + Flanker + Figures+ Corsi
+
+STEMscores ~~ NonVerbal_IQ+ StopSignal + Flanker + Figures + Corsi
+NonVerbal_IQ ~~ StopSignal + Flanker + Figures+ Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures+ Corsi
+Figures ~~ Corsi
+'
+multigroupoverallEFF <- sem(PathModel, data = EFFdata,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml',group = "Site")
+summary(multigroupoverallEFF, rsq = TRUE,fit.measures = TRUE)
+fitmeasures(multigroupoverallEFF)
+varTable(multigroupoverallEFF)
+
+multigroupoverallEFF.constrained <- sem(PathModel, data = EFFdata, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml', group = "Site", group.equal = c("intercepts", "regressions"))
+summary(multigroupoverallEFF.constrained, rsq = TRUE,fit.measures = TRUE)
+fitmeasures(multigroupoverallEFF.constrained)
+varTable(multigroupoverallEFF.constrained)
+
+anova(multigroupoverallEFF, multigroupoverallEFF.constrained)
+
+```
+```{r Path_model Overall Full EFF Data Con}
+PathModel <- '
+ConsistentStatements ~ STEMscores + NonVerbal_IQ + StopSignal + Flanker + Figures + Corsi
+ConsistentAnimism ~ STEMscores + NonVerbal_IQ + StopSignal + Flanker + Figures + Corsi
+ConsistentBouyancy ~ STEMscores + NonVerbal_IQ+ StopSignal + Flanker + Figures + Corsi
+
+STEMscores ~~ NonVerbal_IQ+ StopSignal + Flanker + Figures + Corsi
+NonVerbal_IQ ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+multigroupConEFF <- sem(PathModel, data = OverallEFFdata_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml',group = "Site")
+summary(multigroupConEFF, rsq = TRUE,fit.measures = TRUE)
+fitmeasures(multigroupConEFF)
+varTable(multigroupConEFF)
+
+multigroupConEFF.constrained <- sem(PathModel, data = OverallEFFdata_ConIncon,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml',group = "Site", group.equal = c("intercepts", "regressions"))
+summary(multigroupConEFF.constrained, rsq = TRUE,fit.measures = TRUE)
+fitmeasures(multigroupConEFF.constrained)
+varTable(multigroupConEFF.constrained)
+
+anova(multigroupConEFF, multigroupConEFF.constrained)
+
+```
+```{r Path_model Overall Full EFF Data Incon}
+PathModel <- '
+InconsistentStatements ~ STEMscores + NonVerbal_IQ + StopSignal + Flanker + Figures + Corsi
+InconsistentAnimism ~ STEMscores + NonVerbal_IQ + StopSignal + Flanker + Figures + Corsi
+InconsistentBouyancy ~ STEMscores + NonVerbal_IQ+ StopSignal + Flanker + Figures + Corsi
+
+STEMscores ~~ NonVerbal_IQ+ StopSignal + Flanker + Figures + Corsi
+NonVerbal_IQ ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+
+multigroupInconEFF <- sem(PathModel, data = OverallEFFdata_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml',group = "Site")
+summary(multigroupInconEFF, rsq = TRUE,fit.measures = TRUE)
+fitmeasures(multigroupInconEFF)
+varTable(multigroupInconEFF)
+
+multigroupInconEFF.Inconstrained <- sem(PathModel, data = OverallEFFdata_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml',group = "Site", group.equal = c("intercepts", "regressions"))
+summary(multigroupInconEFF.Inconstrained, rsq = TRUE,fit.measures = TRUE)
+fitmeasures(multigroupInconEFF.Inconstrained)
+varTable(multigroupInconEFF.Inconstrained)
+
+anova(multigroupInconEFF, multigroupInconEFF.Inconstrained)
+
+```

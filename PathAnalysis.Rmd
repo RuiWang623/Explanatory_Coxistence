@@ -1,0 +1,338 @@
+---
+title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy Path Analysis'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Note for abbreviations: SS = Stop Signal task; FT = Flanker task; FM = Figure Matching task; CB = Corsi Block task; MRIB = Matrix Reasoning task; AT = Animism task; BT = Buoyancy task; RS = Science Statement task; ACC = accuracy; RTc = Response Time for correct trials; EFF = efficiency
+
+Load packages and data
+```{r Load Libraries, include=FALSE}
+# Above setting is set to Run only (show nothing) 
+# Load the data file
+# na.strings is so that any categorical data cells will missing data are appropriately labeled as NA (R's way of indicating missing data), the continuous variables seem to do this automatically with this command. 
+# Activate the libraries 
+library(tidyverse) # For data wrangling
+library(psych) # for key psychology stats - correlation, regression
+library(ppcor) # to run partial correlations
+library(lavaan) # For CFA/MI/SEM
+library(OpenMx) # For SEM
+library (DescTools)
+library(semTools)
+library(semPower)
+library(car)
+library(MASS) #rml()
+
+UKdata <- read.csv("UKdata.csv", header = TRUE, na.strings = c("", " ", "NA")) 
+CNdata <- read.csv("CNdata.csv", header = TRUE, na.strings = c("", " ", "NA")) 
+
+```
+
+Rename for later analysis
+```{r rename data, include=FALSE}
+# Renaming some of the columns so that the variables are cleaner in the models
+EFFdata_UK <- dplyr::rename (UKdata, Statements = RS_EFF) %>% 
+  dplyr::rename (STEM =  STEMscore) %>% 
+  dplyr::rename (Animism = AT_EFF) %>% 
+  dplyr::rename (Figures = FM_EFF) %>%
+  dplyr::rename (Flanker = FT_EFF) %>% 
+  dplyr::rename (StopSignal = SS_EFF)%>% 
+  dplyr::rename (Corsi = CB_EFF_backward) %>% 
+  dplyr::rename (Matrix = MRIB_EFF) %>% 
+  dplyr::rename (Bouyancy = BT_EFF)
+
+OverallEFFdata_UK_ConIncon <- dplyr::rename (UKdata, ConsistentStatements = RS_EFF_Consistent) %>% 
+  dplyr::rename (STEM = STEMscore) %>% 
+  dplyr::rename (ConsistentAnimism = AT_EFF_Consistent) %>% 
+  dplyr::rename (Figures = FM_EFF) %>% 
+  dplyr::rename (Flanker = FT_EFF) %>% 
+  dplyr::rename (StopSignal = SS_EFF) %>% 
+  dplyr::rename (Corsi = CB_EFF_backward) %>% 
+  dplyr::rename (Matrix = MRIB_EFF) %>% 
+  dplyr::rename (ConsistentBouyancy = BT_EFF_Consistent)%>% 
+  dplyr::rename (InconsistentStatements = RS_EFF_Inconsistent) %>% 
+  dplyr::rename (InconsistentAnimism = AT_EFF_Inconsistent) %>% 
+  dplyr::rename (InconsistentBouyancy = BT_EFF_Inconsistent)
+
+# Renaming some of the columns so that the variables are cleaner in the models
+EFFdata_CN <- dplyr::rename (CNdata, Statements = RS_EFF) %>% 
+  dplyr::rename (STEM =  STEMscore) %>% 
+  dplyr::rename (Animism = AT_EFF) %>% 
+  dplyr::rename (Figures = FM_EFF) %>%
+  dplyr::rename (Flanker = FT_EFF) %>% 
+  dplyr::rename (StopSignal = SS_EFF)%>% 
+  dplyr::rename (Corsi = CB_EFF_backward) %>% 
+  dplyr::rename (Matrix = MRIB_EFF) %>% 
+  dplyr::rename (Bouyancy = BT_EFF)
+
+OverallEFFdata_CN_ConIncon <- dplyr::rename (CNdata, ConsistentStatements = RS_EFF_Consistent) %>% 
+  dplyr::rename (STEM = STEMscore) %>% 
+  dplyr::rename (ConsistentAnimism = AT_EFF_Consistent) %>% 
+  dplyr::rename (Figures = FM_EFF) %>% 
+  dplyr::rename (Flanker = FT_EFF) %>% 
+  dplyr::rename (StopSignal = SS_EFF) %>% 
+  dplyr::rename (Corsi = CB_EFF_backward) %>% 
+  dplyr::rename (Matrix = MRIB_EFF) %>% 
+  dplyr::rename (ConsistentBouyancy = BT_EFF_Consistent)%>% 
+  dplyr::rename (InconsistentStatements = RS_EFF_Inconsistent) %>% 
+  dplyr::rename (InconsistentAnimism = AT_EFF_Inconsistent) %>% 
+  dplyr::rename (InconsistentBouyancy = BT_EFF_Inconsistent)
+
+```
+
+Path models
+```{r Path_model Overall FuLL EFF Data UK}
+PathModel <- '
+Statements ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+Animism ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+Bouyancy ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+
+STEM ~~ Matrix + StopSignal + Flanker + Figures + Corsi 
+Matrix ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF <- sem(PathModel, data = EFFdata_UK,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF, rsq = TRUE,fit.measures = TRUE, standardized = TRUE, ci = TRUE)
+fitmeasures(PathModelfitEFF)
+
+```
+```{r Path_model Overall Sig EFF Data UK}
+PathModel1 <- '
+Statements ~  Matrix + Figures
+Animism ~ StopSignal + Flanker + Figures
+Bouyancy ~ StopSignal + Flanker + Figures
+
+STEM ~~ Flanker + Corsi 
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF1 <- sem(PathModel1, data = EFFdata_UK,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF1, rsq = TRUE,fit.measures = TRUE, standardized = TRUE, ci = TRUE)
+fitmeasures(PathModelfitEFF1)
+
+PathModel2 <- '
+Statements ~ Figures
+Animism ~ StopSignal + Flanker + Figures
+Bouyancy ~ StopSignal + Flanker + Figures
+
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF2 <- sem(PathModel2, data = EFFdata_UK,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF2, rsq = TRUE,fit.measures = TRUE, standardized = TRUE, ci = TRUE)
+fitmeasures(PathModelfitEFF2)
+
+anova(PathModelfitEFF, PathModelfitEFF1, PathModelfitEFF2)
+```
+
+```{r Path_model Overall FuLL EFF Data Con UK}
+PathModel <- '
+ConsistentStatements ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+ConsistentAnimism ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+ConsistentBouyancy ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+
+STEM ~~ Matrix + StopSignal + Flanker + Figures + Corsi 
+Matrix ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF <- sem(PathModel, data = OverallEFFdata_UK_ConIncon,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF)
+```
+```{r Path_model Overall Sig EFF Data Con UK}
+PathModel1 <- '
+ConsistentStatements ~ Figures
+ConsistentAnimism ~ StopSignal + Flanker + Figures
+ConsistentBouyancy ~ Matrix +  StopSignal + Flanker + Figures
+
+STEM ~~ Flanker + Corsi 
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF1 <- sem(PathModel1, data = OverallEFFdata_UK_ConIncon,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF1, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF1)
+
+PathModel2 <- '
+ConsistentStatements ~ Figures
+ConsistentAnimism ~ StopSignal + Flanker + Figures
+ConsistentBouyancy ~ StopSignal + Flanker + Figures
+
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF2 <- sem(PathModel2, data = OverallEFFdata_UK_ConIncon,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF2, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF2)
+
+anova(PathModelfitEFF, PathModelfitEFF1, PathModelfitEFF2)
+```
+
+```{r Path_model Overall FuLL EFF Data Incon UK}
+PathModel <- '
+InconsistentStatements ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+InconsistentAnimism ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+InconsistentBouyancy ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+
+STEM ~~ Matrix + StopSignal + Flanker + Figures + Corsi 
+Matrix ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+
+PathModelfitEFF <- sem(PathModel, data = OverallEFFdata_UK_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF)
+
+```
+```{r Path_model Overall Sig EFF Data Incon UK}
+PathModel1 <- '
+InconsistentStatements ~ Figures
+InconsistentAnimism ~ Flanker + Figures
+InconsistentBouyancy ~ StopSignal + Flanker + Figures
+
+STEM ~~ Flanker + Corsi 
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+
+PathModelfitEFF1 <- sem(PathModel1, data = OverallEFFdata_UK_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF1, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF1)
+
+PathModel2 <- '
+InconsistentStatements ~ Figures
+InconsistentAnimism ~ Flanker + Figures
+InconsistentBouyancy ~ Flanker + Figures
+
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+
+PathModelfitEFF2 <- sem(PathModel2, data = OverallEFFdata_UK_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF2, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF2)
+
+anova(PathModelfitEFF, PathModelfitEFF1, PathModelfitEFF2)
+
+```
+
+```{r Path_model Overall FuLL EFF Data CN}
+PathModel <- '
+Statements ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+Animism ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+Bouyancy ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+
+STEM ~~ Matrix + StopSignal + Flanker + Figures + Corsi 
+Matrix ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF <- sem(PathModel, data = EFFdata_CN,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF, rsq = TRUE,fit.measures = TRUE, standardized = TRUE, ci = TRUE)
+fitmeasures(PathModelfitEFF)
+
+```
+```{r Path_model Overall Sig EFF Data CN}
+PathModel1 <- '
+Statements ~  Matrix + Figures
+Animism ~ Flanker + Figures
+Bouyancy ~ Flanker + Figures
+
+STEM ~~ Matrix +  Corsi 
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF1 <- sem(PathModel1, data = EFFdata_CN,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF1, rsq = TRUE,fit.measures = TRUE, standardized = TRUE, ci = TRUE)
+fitmeasures(PathModelfitEFF1)
+
+anova(PathModelfitEFF, PathModelfitEFF1)
+```
+
+```{r Path_model Overall FuLL EFF Data Con CN}
+PathModel <- '
+ConsistentStatements ~ STEM + Matrix + StopSignal + Flanker + Figures + Corsi
+ConsistentAnimism ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+ConsistentBouyancy ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+
+STEM ~~ Matrix + StopSignal + Flanker + Figures + Corsi 
+Matrix ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF <- sem(PathModel, data = OverallEFFdata_CN_ConIncon,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF)
+```
+```{r Path_model Overall Sig EFF Data Con CN}
+PathModel1 <- '
+ConsistentStatements ~ Matrix +  Figures
+ConsistentAnimism ~ Flanker + Figures
+ConsistentBouyancy ~ Flanker + Figures
+
+STEM ~~ Matrix +  Corsi 
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+PathModelfitEFF1 <- sem(PathModel1, data = OverallEFFdata_CN_ConIncon,  se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF1, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF1)
+
+anova(PathModelfitEFF, PathModelfitEFF1)
+```
+
+```{r Path_model Overall FuLL EFF Data Incon CN}
+PathModel <- '
+InconsistentStatements ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+InconsistentAnimism ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+InconsistentBouyancy ~ STEM + Matrix +  StopSignal + Flanker + Figures + Corsi
+
+STEM ~~ Matrix + StopSignal + Flanker + Figures + Corsi 
+Matrix ~~ StopSignal + Flanker + Figures + Corsi
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+
+PathModelfitEFF <- sem(PathModel, data = OverallEFFdata_CN_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF)
+
+```
+```{r Path_model Overall Sig EFF Data Incon CN}
+PathModel1 <- '
+InconsistentStatements ~ Matrix +  Figures
+InconsistentAnimism ~ STEM + Flanker +  Figures
+InconsistentBouyancy ~ Matrix + Flanker + Figures
+
+STEM ~~ Matrix +  Corsi 
+StopSignal ~~ Flanker + Figures + Corsi
+Flanker ~~ Figures + Corsi
+Figures ~~ Corsi
+'
+
+PathModelfitEFF1 <- sem(PathModel1, data = OverallEFFdata_CN_ConIncon, se = "robust.mlr", test = "Yuan.Bentler", estimator = "MLR",  missing = 'fiml')
+summary(PathModelfitEFF1, rsq = TRUE,fit.measures = TRUE, standardized = TRUE,ci = TRUE)
+fitmeasures(PathModelfitEFF1)
+
+anova(PathModelfitEFF, PathModelfitEFF1)
+
+```
+
+

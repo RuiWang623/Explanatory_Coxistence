@@ -1,0 +1,175 @@
+---
+title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy Data Correlation Analysis'
+author: "Rui Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Note for abbreviations: SS = Stop Signal task; FT = Flanker task; FM = Figure Matching task; CB = Corsi Block task; MRIB = Matrix Reasoning task; AT = Animism task; BT = Buoyancy task; RS = Science Statement task; ACC = accuracy; RTc = Response Time for correct trials; EFF = efficiency
+
+Packages and load data
+```{r Upload Data, include=FALSE}
+# Activate the libraries 
+library(tidyverse) # For data wrangling
+library(psych) # for key psychology stats - correlation, regression
+library(ppcor) # to run partial correlations
+library(Hmisc) # for correlations
+options(max.print = 2000) # Need this code to be able to see the results summary below
+
+# Import data
+ALLdata_CN <- read.csv("CNdata.csv", header = TRUE, na.strings=c(""," ","NA"))
+ALLdata_UK <- read.csv("UKdata.csv", header = TRUE, na.strings=c(""," ","NA"))
+```
+
+Correlation matrices
+```{r EFF Correlation Plots CN}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+dir.create("Results_Images")
+png(filename = "Results_Images/Correlations_EFF_CN.png", res=500, width=8000, height=8000)
+Correlations_EFF <- dplyr::select(.data = ALLdata_CN,  "STEMscore", "MRIB_EFF",  "SS_EFF", "FT_EFF", "FM_EFF", "CB_EFF_backward","RS_EFF", "AT_EFF", "BT_EFF") %>% 
+   dplyr::rename(STEMscores = STEMscore) %>% 
+   dplyr::rename(StopSignal = SS_EFF) %>% 
+   dplyr::rename(Flanker = FT_EFF) %>% 
+   dplyr::rename(FigureMatching = FM_EFF) %>% 
+   dplyr::rename(Corsi = CB_EFF_backward)%>% 
+   dplyr::rename(Matrix = MRIB_EFF)%>%
+   dplyr::rename(Animism = AT_EFF) %>% 
+   dplyr::rename(Statements = RS_EFF) %>% 
+   dplyr::rename(Bouyancy = BT_EFF)
+rcorr(as.matrix(Correlations_EFF),type="pearson")
+pairs.panels(Correlations_EFF[,-20], 
+             method = "pearson", # correlation method
+             main="Correlations: Overall Score of Efficiency",
+             hist.col="grey",
+             stars = TRUE,
+             density = TRUE,  # show density plots
+             ellipses = FALSE # show correlation ellipses
+             )
+dev.off()
+```
+```{r EFF Congruent Correlation Plots CN}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+dir.create("Results_Images")
+png(filename = "Results_Images/Correlations_EFF_Consistent_CN.png", res=500, width=8000, height=8000)
+Correlations_EFF <- dplyr::select(.data = ALLdata_CN,  "STEMscore", "MRIB_EFF", "SS_EFF", "FT_EFF", "FM_EFF","CB_EFF_backward","RS_EFF_Consistent", "AT_EFF_Consistent", "BT_EFF_Consistent") %>% 
+   dplyr::rename(STEMscores = STEMscore) %>% 
+   dplyr::rename(StopSignal = SS_EFF) %>% 
+   dplyr::rename(Flanker = FT_EFF) %>% 
+   dplyr::rename(FigureMatching = FM_EFF) %>% 
+   dplyr::rename(Corsi = CB_EFF_backward)%>% 
+   dplyr::rename(Matrix = MRIB_EFF)%>%
+   dplyr::rename(Animism = AT_EFF_Consistent) %>% 
+   dplyr::rename(Statements = RS_EFF_Consistent) %>% 
+   dplyr::rename(Bouyancy = BT_EFF_Consistent)
+rcorr(as.matrix(Correlations_EFF),type="pearson")
+pairs.panels(Correlations_EFF[,-20], 
+             method = "pearson", # correlation method
+             main="Correlations: Congruent Score of Efficiency",
+             hist.col="grey",
+             stars = TRUE,
+             density = TRUE,  # show density plots
+             ellipses = FALSE # show correlation ellipses
+             )
+dev.off()
+```
+```{r EFF Incongruent Correlation Plots CN}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+dir.create("Results_Images")
+png(filename = "Results_Images/Correlations_EFF_Inconsistent_CN.png", res=500, width=8000, height=8000)
+Correlations_EFF <- dplyr::select(.data = ALLdata_CN,  "STEMscore", "MRIB_EFF", "SS_EFF", "FT_EFF", "FM_EFF","CB_EFF_backward","RS_EFF_Inconsistent", "AT_EFF_Inconsistent", "BT_EFF_Inconsistent") %>% 
+   dplyr::rename(STEMscores = STEMscore) %>% 
+   dplyr::rename(StopSignal = SS_EFF) %>% 
+   dplyr::rename(Flanker = FT_EFF) %>% 
+   dplyr::rename(FigureMatching = FM_EFF) %>% 
+   dplyr::rename(Corsi = CB_EFF_backward)%>% 
+   dplyr::rename(Matrix = MRIB_EFF)%>%
+   dplyr::rename(Animism = AT_EFF_Inconsistent) %>% 
+   dplyr::rename(Statements = RS_EFF_Inconsistent) %>% 
+   dplyr::rename(Bouyancy = BT_EFF_Inconsistent)
+rcorr(as.matrix(Correlations_EFF),type="pearson")
+pairs.panels(Correlations_EFF[,-20], 
+             method = "pearson", # correlation method
+             main="Correlations: Incongruent Score of Efficiency",
+             hist.col="grey",
+             stars = TRUE,
+             density = TRUE,  # show density plots
+             ellipses = FALSE # show correlation ellipses
+             )
+dev.off()
+```
+
+Correlation plots
+```{r EFF Correlation Plots UK}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+dir.create("Results_Images")
+png(filename = "Results_Images/Correlations_EFF_UK.png", res=500, width=8000, height=8000)
+Correlations_EFF <- dplyr::select(.data = ALLdata_UK, "STEMscore", "MRIB_EFF", "SS_EFF", "FT_EFF", "FM_EFF", "CB_EFF_backward", "RS_EFF", "AT_EFF", "BT_EFF") %>% 
+   dplyr::rename(STEMscores = STEMscore) %>% 
+   dplyr::rename(StopSignal = SS_EFF) %>% 
+   dplyr::rename(Flanker = FT_EFF) %>% 
+   dplyr::rename(FigureMatching = FM_EFF) %>% 
+   dplyr::rename(Corsi = CB_EFF_backward)%>% 
+   dplyr::rename(Matrix = MRIB_EFF)%>%
+   dplyr::rename(Animism = AT_EFF) %>% 
+   dplyr::rename(Statements = RS_EFF) %>% 
+   dplyr::rename(Bouyancy = BT_EFF)
+rcorr(as.matrix(Correlations_EFF),type="pearson")
+pairs.panels(Correlations_EFF[,-20], 
+             method = "pearson", # correlation method
+             main="Correlations: Overall Score of Efficiency",
+             hist.col="grey",
+             stars = TRUE,
+             density = TRUE,  # show density plots
+             ellipses = FALSE # show correlation ellipses
+             )
+dev.off()
+```
+```{r EFF Congruent Correlation Plots UK}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+dir.create("Results_Images")
+png(filename = "Results_Images/Correlations_EFF_Consistent_UK.png", res=500, width=8000, height=8000)
+Correlations_EFF <- dplyr::select(.data = ALLdata_UK, "STEMscore", "MRIB_EFF", "SS_EFF", "FT_EFF", "FM_EFF","CB_EFF_backward", "RS_EFF_Consistent","AT_EFF_Consistent", "BT_EFF_Consistent") %>% 
+   dplyr::rename(STEMscores = STEMscore) %>% 
+   dplyr::rename(StopSignal = SS_EFF) %>% 
+   dplyr::rename(Flanker = FT_EFF) %>% 
+   dplyr::rename(FigureMatching = FM_EFF) %>% 
+   dplyr::rename(Corsi = CB_EFF_backward)%>% 
+   dplyr::rename(Matrix = MRIB_EFF)%>%
+   dplyr::rename(Animism = AT_EFF_Consistent) %>% 
+   dplyr::rename(Statements = RS_EFF_Consistent) %>% 
+   dplyr::rename(Bouyancy = BT_EFF_Consistent)
+rcorr(as.matrix(Correlations_EFF),type="pearson")
+pairs.panels(Correlations_EFF[,-20], 
+             method = "pearson", # correlation method
+             main="Correlations: Congruent Score of Efficiency",
+             hist.col="grey",
+             stars = TRUE,
+             density = TRUE,  # show density plots
+             ellipses = FALSE # show correlation ellipses
+             )
+dev.off()
+```
+```{r EFF Incongruent Correlation Plots UK}
+# This code creates a PNG file showing each variable's histogram, each pairwise scatterplot and each pairwise correlation
+dir.create("Results_Images")
+png(filename = "Results_Images/Correlations_EFF_Inconsistent_UK.png", res=500, width=8000, height=8000)
+Correlations_EFF <- dplyr::select(.data = ALLdata_UK, "STEMscore", "MRIB_EFF", "SS_EFF", "FT_EFF", "FM_EFF","CB_EFF_backward","RS_EFF_Inconsistent", "AT_EFF_Inconsistent", "BT_EFF_Inconsistent") %>% 
+   dplyr::rename(STEMscores = STEMscore) %>% 
+   dplyr::rename(StopSignal = SS_EFF) %>% 
+   dplyr::rename(Flanker = FT_EFF) %>% 
+   dplyr::rename(FigureMatching = FM_EFF) %>% 
+   dplyr::rename(Corsi = CB_EFF_backward)%>% 
+   dplyr::rename(Matrix = MRIB_EFF)%>%
+   dplyr::rename(Animism = AT_EFF_Inconsistent) %>% 
+   dplyr::rename(Statements = RS_EFF_Inconsistent) %>% 
+   dplyr::rename(Bouyancy = BT_EFF_Inconsistent)
+rcorr(as.matrix(Correlations_EFF),type="pearson")
+pairs.panels(Correlations_EFF[,-20], 
+             method = "pearson", # correlation method
+             main="Correlations: Incongruent Score of Efficiency",
+             hist.col="grey",
+             stars = TRUE,
+             density = TRUE,  # show density plots
+             ellipses = FALSE # show correlation ellipses
+             )
+dev.off()
+```
