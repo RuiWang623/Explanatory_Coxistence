@@ -3,8 +3,6 @@ title: 'Explanatory Coexistence: R Code for Wrangling PsychoPy Comparsion Analys
 author: "Rui Wang"
 date: "`r Sys.Date()`"
 output: html_document
-
-Due to ethics and data privacy concerns, the raw data corresponding to this file has not been uploaded. However, I have uploaded the code to demonstrate the data wrangling process.
 ---
 # Note for abbreviations: SS = Stop Signal task; FT = Flanker task; FM = Figure Matching task; CB = Corsi Block task; MRIB = Matrix Reasoning task; AT = Animism task; BT = Buoyancy task; RS = Science Statement task; ACC = accuracy; RTc = Response Time for correct trials; EFF = efficiency
 
